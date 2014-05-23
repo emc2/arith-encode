@@ -44,3 +44,4 @@ Library
                         Data.ArithEncode.Id
                         Data.ArithEncode.IntegralRange
                         Data.ArithEncode.Literal
+                        Data.ArithEncode.Option
