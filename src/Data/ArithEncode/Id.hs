@@ -30,10 +30,9 @@
 {-# OPTIONS_GHC -Werror -Wall #-}
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
--- | Defines the identity @ArithEncode@, which maps the natural
--- numbers (represented as any @Integral@ on to themselves.  This is
--- useful in the context of the other constructions on 'ArithEncode'
--- instances.
+-- | Defines the identity @ArithEncode@, which maps the natural numbers
+-- (represented as any @Integral@ on to themselves.  This is useful in
+-- the context of the other constructions on 'ArithEncode' instances.
 module Data.ArithEncode.Id(
        IdArithEncode,
        idEncoding,
@@ -43,10 +42,10 @@ import Data.ArithEncode.Class
 
 -- | The datatype for the identity isomorphism.  This datatype has a
 -- single constructor, and contains no data.
-data IdArithEncode a = IdArithEncode
+data IdArithEncode = IdArithEncode
 
 -- | The instance of the identity isomorphism.
-idEncoding :: IdArithEncode a
+idEncoding :: IdArithEncode
 idEncoding = IdArithEncode
 
 instance Integral num => ArithEncode IdArithEncode num where

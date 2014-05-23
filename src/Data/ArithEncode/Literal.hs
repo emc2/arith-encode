@@ -87,7 +87,7 @@ literalEncodingFromList vals =
     LiteralArithEncode { lSize = toInteger len, lEncode = (Map.!) valmap,
                          lDecode = (Array.!) valarr . fromInteger }
 
-instance ArithEncode LiteralArithEncode ty where
+instance ArithEncode (LiteralArithEncode ty) ty where
   size = Just . lSize
   encode LiteralArithEncode { lEncode = func } = func
   decode LiteralArithEncode { lDecode = func } = func

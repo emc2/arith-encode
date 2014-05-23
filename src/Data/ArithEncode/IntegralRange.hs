@@ -66,7 +66,7 @@ integralRange :: Integral num
 integralRange lower upper =
   IntegralRangeArithEncode { irLower = lower, irUpper = upper }
 
-instance Integral num => ArithEncode IntegralRangeArithEncode num where
+instance Integral num => ArithEncode (IntegralRangeArithEncode num) num where
   size IntegralRangeArithEncode { irLower = lower, irUpper = upper } =
     Just (toInteger (upper - lower))
 

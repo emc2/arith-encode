@@ -69,7 +69,7 @@ module Data.ArithEncode.Class(
 class ArithEncode iso ty where
   -- | Get the number of mappings in an isomorphism, or 'Nothing' if
   -- that number is infinite.
-  size :: iso ty
+  size :: iso
        -- ^ The isomorphism in question.
        -> Maybe Integer
        -- ^ The number of mappings (also the size of the integer range
@@ -78,7 +78,7 @@ class ArithEncode iso ty where
   -- | Convert an element of @ty@ into a natural number.  If the
   -- encoding is finite, the number will always be @>= 0@, and it will
   -- be < n if @size == Just n@.
-  encode :: iso ty
+  encode :: iso
          -- ^ Isomorphism-specific data.
          -> ty
          -- ^ The element to convert to a natural number
@@ -88,7 +88,7 @@ class ArithEncode iso ty where
   -- | Convert a natural number (represented as an @Integer@ to an
   -- element of @ty@.  The input must always be @>= 0@, and it must also
   -- be @< n@, if @size == Just n@.
-  decode :: iso ty
+  decode :: iso
          -- ^ Isomorphism-specific data.
          -> Integer
          -- ^ The integer to convert to an element of the type.
