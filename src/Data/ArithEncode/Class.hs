@@ -49,8 +49,21 @@
 -- given datatype, thus it takes an additional argument which
 -- describes the encoding.
 module Data.ArithEncode.Class(
+       ArithEncodeBound(..),
        ArithEncode(..)
        ) where
+
+-- | A class defining the 'size' function, which is used by the
+-- 'ArithEncode' class to report the bounds on the isomorphism it
+-- describes.
+class ArithEncodeBound iso where
+  -- | Get the number of mappings in an isomorphism, or 'Nothing' if
+  -- that number is infinite.
+  size :: iso
+       -- ^ The isomorphism in question.
+       -> Maybe Integer
+       -- ^ The number of mappings (also the size of the integer range
+       -- mapped to), or 'Nothing' if it is infinite.
 
 -- | A class for isomorphisms between some type @ty@ and a range of
 -- the natural numbers.  Instances must define 'encode' and 'decode'
@@ -66,15 +79,7 @@ module Data.ArithEncode.Class(
 -- redefine 'size' such that it returns @Just n@ for an input domain
 -- of size @n@.  Additionally, the instance should ensure that
 -- 'encode' always maps to 'Integer's less than @n@.
-class ArithEncode iso ty where
-  -- | Get the number of mappings in an isomorphism, or 'Nothing' if
-  -- that number is infinite.
-  size :: iso
-       -- ^ The isomorphism in question.
-       -> Maybe Integer
-       -- ^ The number of mappings (also the size of the integer range
-       -- mapped to), or 'Nothing' if it is infinite.
-
+class ArithEncodeBound iso => ArithEncode iso ty where
   -- | Convert an element of @ty@ into a natural number.  If the
   -- encoding is finite, the number will always be @>= 0@, and it will
   -- be < n if @size == Just n@.

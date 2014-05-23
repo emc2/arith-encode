@@ -30,8 +30,8 @@
 {-# OPTIONS_GHC -Werror -Wall #-}
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
--- | Defines the identity @ArithEncode@, which maps the natural numbers
--- (represented as any @Integral@ on to themselves.  This is useful in
+-- | Defines the identity 'ArithEncode', which maps the natural numbers
+-- (represented as any 'Integral' on to themselves.  This is useful in
 -- the context of the other constructions on 'ArithEncode' instances.
 module Data.ArithEncode.Id(
        IdArithEncode,
@@ -48,7 +48,9 @@ data IdArithEncode = IdArithEncode
 idEncoding :: IdArithEncode
 idEncoding = IdArithEncode
 
-instance Integral num => ArithEncode IdArithEncode num where
+instance ArithEncodeBound IdArithEncode where
   size _ = Nothing
+
+instance Integral num => ArithEncode IdArithEncode num where
   encode _ = toInteger
   decode _ = fromInteger
