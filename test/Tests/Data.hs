@@ -27,46 +27,12 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
-{-# OPTIONS_GHC -funbox-strict-fields -Werror -Wall #-}
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
 
--- | Defines a construction on 'ArithEncoding's that wraps another
--- 'ArithEncoding' up in a 'Maybe'.  The resulting isomorphism maps
--- @0@ to 'Nothing', and @n + 1@ to the value mapped to @n@ by the
--- original encoding.
-module Data.ArithEncode.Option(
-       OptionArithEncode,
-       optionEncoding
-       ) where
+module Tests.Data(tests) where
 
-import Data.ArithEncode.Class
+import Test.HUnitPlus.Base
 
--- | Datatype for an isomorphism that wraps an inner isomorphism up in
--- a 'Maybe'.
-data OptionArithEncode iso =
-  OptionArithEncode {
-    -- | The inner isomorphism.
-    optInner :: !iso
-  }
+import qualified Tests.Data.ArithEncode as ArithEncode
 
--- | Construct an option isomorphism.
-optionEncoding :: iso
-               -- ^ The isomorphism from which to build the option.
-               -> OptionArithEncode iso
-optionEncoding inner = OptionArithEncode { optInner = inner }
-
-instance ArithEncodeBound iso => ArithEncodeBound (OptionArithEncode iso) where
-  size OptionArithEncode { optInner = inner } =
-    do
-      count <- size inner
-      return (count + 1)
-
-instance (ArithEncode iso ty) =>
-         ArithEncode (OptionArithEncode iso) (Maybe ty) where
-  encode _ Nothing = 0
-  encode OptionArithEncode { optInner = inner } (Just item) =
-    (encode inner item) + 1
-
-  decode _ 0 = Nothing
-  decode OptionArithEncode { optInner = inner } num =
-    Just (decode inner (num - 1))
+tests :: Test
+tests = "Data" ~: [ArithEncode.tests]

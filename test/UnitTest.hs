@@ -27,30 +27,17 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
-{-# OPTIONS_GHC -Werror -Wall #-}
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
--- | Defines the identity 'ArithEncode', which maps the natural numbers
--- (represented as any 'Integral' on to themselves.  This is useful in
--- the context of the other constructions on 'ArithEncode' instances.
-module Data.ArithEncode.Id(
-       IdArithEncode,
-       idEncoding,
-       ) where
+module Main(main) where
 
-import Data.ArithEncode.Class
+import Test.HUnitPlus
 
--- | The datatype for the identity isomorphism.  This datatype has a
--- single constructor, and contains no data.
-data IdArithEncode = IdArithEncode
+import qualified Tests.Data as Data
 
--- | The instance of the identity isomorphism.
-idEncoding :: IdArithEncode
-idEncoding = IdArithEncode
+tests = [ Data.tests ]
 
-instance ArithEncodeBound IdArithEncode where
-  size _ = Nothing
+testsuite = TestSuite { suiteName = "unit-tests", suiteConcurrently = True,
+                        suiteTests = tests, suiteOptions = [] }
 
-instance Integral num => ArithEncode IdArithEncode num where
-  encode _ = toInteger
-  decode _ = fromInteger
+main :: IO ()
+main = createMain [testsuite]
