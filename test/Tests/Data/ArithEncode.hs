@@ -87,17 +87,25 @@ testFiniteEncoding tags iso =
 testInfDimlessEncodingWithLimit tags iso limit = [
     testNameTags "isomorphism" ("isomorphism" : tags)
                  (testIsomorphism iso limit),
-    testNameTags "size" ("size" : tags) (size iso @?= Nothing)
+    testNameTags "size" ("size" : tags) (size iso @?= Nothing),
+    testNameTags "maxDepth" ("maxDepth" : tags) (maxDepth iso () @?= Just 0),
+    testNameTags "highestIndex" ("highestIndex" : tags)
+                 (highestIndex iso () 0 @?= Nothing)
   ]
 
 testInfDimlessEncoding tags iso = testInfDimlessEncodingWithLimit tags iso 10000
 
-testFiniteEncodingWithVals tags iso vals = [
-    testNameTags "isomorphism" ("isomorphism" : tags)
-                 (testEncodingVals iso vals),
-    testNameTags "size" ("size" : tags)
-                 (size iso @?= Just (toInteger (length vals)))
-  ]
+testFiniteEncodingWithVals tags iso vals =
+  let
+    isosize = toInteger (length vals)
+  in
+    [ testNameTags "isomorphism" ("isomorphism" : tags)
+                   (testEncodingVals iso vals),
+      testNameTags "size" ("size" : tags)
+                   (size iso @?= Just isosize),
+      testNameTags "maxDepth" ("maxDepth" : tags) (maxDepth iso () @?= Just 0),
+      testNameTags "highestIndex" ("highestIndex" : tags)
+                   (highestIndex iso () 0 @?= Just isosize) ]
 
 integralEncodingInteger :: Encoding () Integer
 integralEncodingInteger = integralEncoding
@@ -213,7 +221,15 @@ testlist = [
     "intervalEncodingWord8_0_255" ~:
       testFiniteEncodingWithVals ["interval", "Word8", "isomorhpism"]
                                  (intervalEncodingWord8 0 255)
-                                 [0..255]
+                                 [0..255],
+    "fromHashableList" ~:
+      testFiniteEncodingWithVals ["fromHashableList", "isomorhpism"]
+                                 (fromHashableList ["A", "B", "C", "D", "E"])
+                                 ["A", "B", "C", "D", "E"],
+    "fromOrdList" ~:
+      testFiniteEncodingWithVals ["fromOrdList", "isomorhpism"]
+                                 (fromOrdList ["A", "B", "C", "D", "E"])
+                                 ["A", "B", "C", "D", "E"]
   ]
 
 tests :: Test
