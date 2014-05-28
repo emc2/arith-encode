@@ -138,10 +138,10 @@ intervalEncodingWord64 = intervalEncoding
 intervalEncodingWord8 :: Word8 -> Word8 -> Encoding () Word8
 intervalEncodingWord8 = intervalEncoding
 
-optionalEncoding = optional (fromOrdList ["A", "B", "C", "D"])
+optionalEncoding = optional (fromHashableList ["A", "B", "C", "D"])
 
 optionalEncodingTests =
-  [ testNameTags "isomorphism" ["isomorphism", "optional"]
+  [ testNameTags "isomorphism" ["isomorphism", "optional", "fromHashableList"]
                  (testEncodingVals optionalEncoding
                                    [Nothing, Just "A", Just "B",
                                     Just "C", Just "D"]),
@@ -250,14 +250,19 @@ testlist = [
                                  (fromOrdList ["A", "B", "C", "D", "E"])
                                  ["A", "B", "C", "D", "E"],
     "wrap" ~:
-      testFiniteEncodingWithVals ["wrap"]
+      testFiniteEncodingWithVals ["wrap", "fromOrdList"]
                                  (wrap (map toUpper) (map toLower)
                                        (fromOrdList ["A", "B", "C", "D", "E"]))
                                  ["a", "b", "c", "d", "e"],
     "optional" ~: optionalEncodingTests,
     "mandatory" ~:
       testFiniteEncodingWithVals ["mandatory"] (mandatory optionalEncoding)
-                                 ["A", "B", "C", "D"]
+                                 ["A", "B", "C", "D"],
+    "nonzero" ~:
+      testFiniteEncodingWithVals ["nonzero", "fromHashableList"]
+                                 (nonzero (fromHashableList ["A", "B", "C",
+                                                             "D", "E", "F"]))
+                                 ["B", "C", "D", "E", "F"]
   ]
 
 tests :: Test

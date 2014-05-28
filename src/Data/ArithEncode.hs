@@ -102,7 +102,8 @@ module Data.ArithEncode(
        -- ** Constructions
        wrap,
        optional,
-       mandatory
+       mandatory,
+       nonzero
        ) where
 
 import Control.Exception
@@ -424,3 +425,20 @@ mandatory Encoding { encEncode = encodefunc, encDecode = decodefunc,
     Encoding { encEncode = newencode, encDecode = newdecode,
                encSize = newsize, encMaxDepth = newmaxdepth,
                encDepth = newdepth, encHighestIndex = newhighestindex }
+
+-- | Removes the mapping to @0@ (ie. the first mapping).  This has the
+-- same effect as @exclude [x]@, where @x@ is the value that maps to
+-- @0@.  It is also similar to @mandatory@, except that it does not
+-- change the base type.
+nonzero :: Encoding dim ty -> Encoding dim ty
+nonzero enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                         encSize = sizeval, encHighestIndex = highindexfunc } =
+  let
+    dec n = n - 1
+    newencode = dec . encodefunc
+    newdecode = decodefunc . (+ 1)
+    newsize = sizeval >>= return . dec
+    newhighestindex dim num = highindexfunc dim num >>= return . dec
+  in
+    enc { encEncode = newencode, encDecode = newdecode,
+          encSize = newsize, encHighestIndex = newhighestindex }
