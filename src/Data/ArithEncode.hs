@@ -100,7 +100,8 @@ module Data.ArithEncode(
        fromOrdList,
 
        -- ** Constructions
-       wrapEncoding
+       wrap,
+       optional
        ) where
 
 import Control.Exception
@@ -356,16 +357,56 @@ fromOrdList elems =
 -- implements @depth@ as @depth enc . fwd@, which only works if @fwd@
 -- preserves all depths.  For more complex cases, use @mkEncoding@ to
 -- define a new encoding.
-wrapEncoding :: (a -> b)
-             -- ^ The forward encoding function.
-             -> (b -> a)
-             -- ^ The reverse encoding function.
-             -> Encoding dim b
-             -- ^ The inner encoding.
-             -> Encoding dim a
-wrapEncoding fwd rev enc @ Encoding { encEncode = encodefunc,
-                                      encDecode = decodefunc,
-                                      encDepth = depthfunc } =
+wrap :: (a -> b)
+     -- ^ The forward encoding function.
+     -> (b -> a)
+     -- ^ The reverse encoding function.
+     -> Encoding dim b
+     -- ^ The inner encoding.
+     -> Encoding dim a
+wrap fwd rev enc @ Encoding { encEncode = encodefunc,
+                              encDecode = decodefunc,
+                              encDepth = depthfunc } =
   enc { encEncode = encodefunc . fwd,
         encDecode = rev . decodefunc,
         encDepth = (\dim -> depthfunc dim . fwd) }
+
+-- | Generate an encoding for @Maybe ty@ from an inner encoding for
+-- @ty@.  This adds one level of depth: @Nothing@ has depth @0@, and
+-- the rest of the depths are determined by adding one to the depths
+-- from the inner encoding.
+optional :: Encoding dim ty -> Encoding dim (Maybe ty)
+optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                    encSize = sizeval, encMaxDepth = maxdepthfunc,
+                    encDepth = depthfunc, encHighestIndex = highestindexfunc } =
+  let
+    newsize = sizeval >>= return . (+ 1)
+
+    newencode Nothing = 0
+    newencode (Just val) = 1 + encodefunc val
+
+    newdecode 0 = Nothing
+    newdecode num = Just (decodefunc (num - 1))
+
+    newmaxdepth dim = maxdepthfunc dim >>= return . (+ 1)
+
+    newdepth _ Nothing = 0
+    newdepth dim (Just val) = (depthfunc dim val) + 1
+
+    newhighestindex _ 0 = Just 0
+    newhighestindex dim val = highestindexfunc dim (val - 1)
+  in
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = newsize, encMaxDepth = newmaxdepth,
+               encDepth = newdepth, encHighestIndex = newhighestindex }
+{-
+-- | The dual of @optional@.  This construction assumes that @Nothing@
+-- maps to @0@, and removes it from the input domain.  It also assumes
+-- that @Nothing@ has depth @0@, and everything else has a higher
+-- depth.
+--
+-- Using this construction on encodings for @Maybe ty@ which are not
+-- produced by @optional@ may have unexpected results.
+mandatory :: Encoding dim (Maybe ty) -> Encoding dim ty
+mandatory
+-}

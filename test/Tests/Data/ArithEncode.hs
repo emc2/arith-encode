@@ -138,6 +138,24 @@ intervalEncodingWord64 = intervalEncoding
 intervalEncodingWord8 :: Word8 -> Word8 -> Encoding () Word8
 intervalEncodingWord8 = intervalEncoding
 
+optionalEncoding = optional (fromOrdList ["A", "B", "C", "D"])
+
+optionalEncodingTests =
+  [ testNameTags "isomorphism" ["isomorphism", "optional"]
+                 (testEncodingVals optionalEncoding
+                                   [Nothing, Just "A", Just "B",
+                                    Just "C", Just "D"]),
+    testNameTags "decode_zero" ["isomorphism", "optional"]
+                 (decode optionalEncoding 0 @?= Nothing),
+    testNameTags "size" ["size", "optional"]
+                 (size optionalEncoding @?= Just 5),
+    testNameTags "maxDepth" ["maxDepth", "optional"]
+                 (maxDepth optionalEncoding () @?= Just 1),
+    testNameTags "highestIndex_zero" ["highestIndex", "optional"]
+                 (highestIndex optionalEncoding () 0 @?= Just 0),
+    testNameTags "highestIndex_one" ["highestIndex", "optional"]
+                 (highestIndex optionalEncoding () 1 @?= Just 4) ]
+
 testlist :: [Test]
 testlist = [
     -- Identity encoding tests
@@ -231,12 +249,12 @@ testlist = [
       testFiniteEncodingWithVals ["fromOrdList", "isomorhpism"]
                                  (fromOrdList ["A", "B", "C", "D", "E"])
                                  ["A", "B", "C", "D", "E"],
-    "wrapEncoding" ~:
-      testFiniteEncodingWithVals ["wrapEncoding", "isomorhpism"]
-                                 (wrapEncoding (map toUpper) (map toLower)
-                                               (fromOrdList ["A", "B", "C",
-                                                             "D", "E", "F"]))
-                                 ["a", "b", "c", "d", "e", "f"]
+    "wrap" ~:
+      testFiniteEncodingWithVals ["wrap", "isomorhpism"]
+                                 (wrap (map toUpper) (map toLower)
+                                       (fromOrdList ["A", "B", "C", "D", "E"]))
+                                 ["a", "b", "c", "d", "e"],
+    "optional" ~: optionalEncodingTests
   ]
 
 tests :: Test
