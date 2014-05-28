@@ -175,86 +175,89 @@ testlist = [
                                        integralEncodingWord8 255,
     -- Interval encoding tests
     "intervalEncodingInteger_0_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Integer", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Integer"]
                                  (intervalEncodingInteger 0 10000) [0..10000],
     "intervalEncodingInteger_2000_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Integer", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Integer"]
                                  (intervalEncodingInteger 2000 10000)
                                  [2000..10000],
     "intervalEncodingInteger_neg2000_2000" ~:
-      testFiniteEncodingWithVals ["interval", "Integer", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Integer"]
                                  (intervalEncodingInteger (-2000) 2000)
                                  [-2000..2000],
     "intervalEncodingInteger_neg10000_neg2000" ~:
-      testFiniteEncodingWithVals ["interval", "Integer", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Integer"]
                                  (intervalEncodingInteger (-10000) (-2000))
                                  [-10000..(-2000)],
     "intervalEncodingInt64_0_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Int64", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Int64"]
                                  (intervalEncodingInt64 0 10000) [0..10000],
     "intervalEncodingInt64_2000_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Int64", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Int64"]
                                  (intervalEncodingInt64 2000 10000)
                                  [2000..10000],
     "intervalEncodingInt64_neg2000_2000" ~:
-      testFiniteEncodingWithVals ["interval", "Int64", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Int64"]
                                  (intervalEncodingInt64 (-2000) 2000)
                                  [-2000..2000],
     "intervalEncodingInt64_neg10000_neg2000" ~:
-      testFiniteEncodingWithVals ["interval", "Int64", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Int64"]
                                  (intervalEncodingInt64 (-10000) (-2000))
                                  [-10000..(-2000)],
     "intervalEncodingWord64_0_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Word64", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Word64"]
                                  (intervalEncodingWord64 0 10000) [0..10000],
     "intervalEncodingWord64_2000_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Word64", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Word64"]
                                  (intervalEncodingWord64 2000 10000)
                                  [2000..10000],
     "intervalEncodingInt8_0_100" ~:
-      testFiniteEncodingWithVals ["interval", "Int8", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Int8"]
                                  (intervalEncodingInt8 0 100) [0..100],
     "intervalEncodingInt8_20_100" ~:
-      testFiniteEncodingWithVals ["interval", "Int8", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Int8"]
                                  (intervalEncodingInt8 20 100)
                                  [20..100],
     "intervalEncodingInt8_neg20_20" ~:
-      testFiniteEncodingWithVals ["interval", "Int8", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Int8"]
                                  (intervalEncodingInt8 (-20) 20)
                                  [-20..20],
     "intervalEncodingInt8_neg100_neg20" ~:
-      testFiniteEncodingWithVals ["interval", "Int8", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Int8"]
                                  (intervalEncodingInt8 (-100) (-20))
                                  [-100..(-20)],
     "intervalEncodingInt8_neg128_127" ~:
-      testFiniteEncodingWithVals ["interval", "Int8", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Int8"]
                                  (intervalEncodingInt8 (-128) 127)
                                  [-128..127],
     "intervalEncodingWord8_0_100" ~:
-      testFiniteEncodingWithVals ["interval", "Word8", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Word8"]
                                  (intervalEncodingWord8 0 100) [0..100],
     "intervalEncodingWord8_20_100" ~:
-      testFiniteEncodingWithVals ["interval", "Word8", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Word8"]
                                  (intervalEncodingWord8 20 100)
                                  [20..100],
     "intervalEncodingWord8_0_255" ~:
-      testFiniteEncodingWithVals ["interval", "Word8", "isomorhpism"]
+      testFiniteEncodingWithVals ["interval", "Word8"]
                                  (intervalEncodingWord8 0 255)
                                  [0..255],
     "fromHashableList" ~:
-      testFiniteEncodingWithVals ["fromHashableList", "isomorhpism"]
+      testFiniteEncodingWithVals ["fromHashableList"]
                                  (fromHashableList ["A", "B", "C", "D", "E"])
                                  ["A", "B", "C", "D", "E"],
     "fromOrdList" ~:
-      testFiniteEncodingWithVals ["fromOrdList", "isomorhpism"]
+      testFiniteEncodingWithVals ["fromOrdList"]
                                  (fromOrdList ["A", "B", "C", "D", "E"])
                                  ["A", "B", "C", "D", "E"],
     "wrap" ~:
-      testFiniteEncodingWithVals ["wrap", "isomorhpism"]
+      testFiniteEncodingWithVals ["wrap"]
                                  (wrap (map toUpper) (map toLower)
                                        (fromOrdList ["A", "B", "C", "D", "E"]))
                                  ["a", "b", "c", "d", "e"],
-    "optional" ~: optionalEncodingTests
+    "optional" ~: optionalEncodingTests,
+    "mandatory" ~:
+      testFiniteEncodingWithVals ["mandatory"] (mandatory optionalEncoding)
+                                 ["A", "B", "C", "D"]
   ]
 
 tests :: Test

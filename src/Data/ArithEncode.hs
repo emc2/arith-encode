@@ -101,12 +101,14 @@ module Data.ArithEncode(
 
        -- ** Constructions
        wrap,
-       optional
+       optional,
+       mandatory
        ) where
 
 import Control.Exception
 import Data.Bits
 import Data.Hashable
+import Data.Maybe
 import Data.Typeable
 
 import qualified Data.Array as Array
@@ -381,14 +383,13 @@ optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
                     encDepth = depthfunc, encHighestIndex = highestindexfunc } =
   let
     newsize = sizeval >>= return . (+ 1)
+    newmaxdepth dim = maxdepthfunc dim >>= return . (+ 1)
 
     newencode Nothing = 0
     newencode (Just val) = 1 + encodefunc val
 
     newdecode 0 = Nothing
     newdecode num = Just (decodefunc (num - 1))
-
-    newmaxdepth dim = maxdepthfunc dim >>= return . (+ 1)
 
     newdepth _ Nothing = 0
     newdepth dim (Just val) = (depthfunc dim val) + 1
@@ -399,7 +400,7 @@ optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
     Encoding { encEncode = newencode, encDecode = newdecode,
                encSize = newsize, encMaxDepth = newmaxdepth,
                encDepth = newdepth, encHighestIndex = newhighestindex }
-{-
+
 -- | The dual of @optional@.  This construction assumes that @Nothing@
 -- maps to @0@, and removes it from the input domain.  It also assumes
 -- that @Nothing@ has depth @0@, and everything else has a higher
@@ -408,5 +409,18 @@ optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
 -- Using this construction on encodings for @Maybe ty@ which are not
 -- produced by @optional@ may have unexpected results.
 mandatory :: Encoding dim (Maybe ty) -> Encoding dim ty
-mandatory
--}
+mandatory Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                    encSize = sizeval, encMaxDepth = maxdepthfunc,
+                    encDepth = depthfunc, encHighestIndex = highestindexfunc } =
+  let
+    dec n = n - 1
+    newencode = dec . encodefunc . Just
+    newdecode = fromJust . decodefunc . (+ 1)
+    newsize = sizeval >>= return . dec
+    newmaxdepth dim = maxdepthfunc dim >>= return . dec
+    newdepth dim = dec . depthfunc dim . Just
+    newhighestindex dim = highestindexfunc dim . dec
+  in
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = newsize, encMaxDepth = newmaxdepth,
+               encDepth = newdepth, encHighestIndex = newhighestindex }
