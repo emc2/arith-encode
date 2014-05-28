@@ -100,6 +100,7 @@ module Data.ArithEncode(
        fromOrdList,
 
        -- ** Constructions
+       wrapEncoding
        ) where
 
 import Control.Exception
@@ -346,3 +347,25 @@ fromOrdList elems =
     sizeval = Just (toInteger len)
   in
     mkDimlessEncoding encodefunc decodefunc sizeval
+
+-- | Wrap an encoding using a pair of functions.  These functions must
+-- also define an isomorphism.
+--
+-- The resulting encoding from
+-- > wrapEncoding fwd rev enc
+-- implements @depth@ as @depth enc . fwd@, which only works if @fwd@
+-- preserves all depths.  For more complex cases, use @mkEncoding@ to
+-- define a new encoding.
+wrapEncoding :: (a -> b)
+             -- ^ The forward encoding function.
+             -> (b -> a)
+             -- ^ The reverse encoding function.
+             -> Encoding dim b
+             -- ^ The inner encoding.
+             -> Encoding dim a
+wrapEncoding fwd rev enc @ Encoding { encEncode = encodefunc,
+                                      encDecode = decodefunc,
+                                      encDepth = depthfunc } =
+  enc { encEncode = encodefunc . fwd,
+        encDecode = rev . decodefunc,
+        encDepth = (\dim -> depthfunc dim . fwd) }

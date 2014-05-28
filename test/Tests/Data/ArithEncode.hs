@@ -32,6 +32,7 @@ module Tests.Data.ArithEncode(tests) where
 
 import Control.Monad
 import Data.ArithEncode
+import Data.Char
 import Data.Hashable
 import Data.Int
 import Data.Maybe
@@ -229,7 +230,13 @@ testlist = [
     "fromOrdList" ~:
       testFiniteEncodingWithVals ["fromOrdList", "isomorhpism"]
                                  (fromOrdList ["A", "B", "C", "D", "E"])
-                                 ["A", "B", "C", "D", "E"]
+                                 ["A", "B", "C", "D", "E"],
+    "wrapEncoding" ~:
+      testFiniteEncodingWithVals ["wrapEncoding", "isomorhpism"]
+                                 (wrapEncoding (map toUpper) (map toLower)
+                                               (fromOrdList ["A", "B", "C",
+                                                             "D", "E", "F"]))
+                                 ["a", "b", "c", "d", "e", "f"]
   ]
 
 tests :: Test
