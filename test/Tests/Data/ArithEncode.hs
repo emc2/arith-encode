@@ -76,19 +76,28 @@ testEncodingVals iso vals =
   in
     foldM_ foldfun Set.empty vals
 
-testFiniteEncoding :: (Hashable ty, Ord ty, Show ty) => Encoding dim ty -> IO ()
-testFiniteEncoding iso =
+testFiniteEncoding :: (Hashable ty, Ord ty, Show ty) =>
+                      [String] -> Encoding dim ty -> IO ()
+testFiniteEncoding tags iso =
   let
     limit = fromJust (size iso)
   in
     testIsomorphism iso limit
 
-testInfDimlessEncodingWithLimit iso limit = [
-    testNameTags "isomorphism" ["isomorphism"] (testIsomorphism iso limit),
-    testNameTags "size" ["size"] (size iso @?= Nothing)
+testInfDimlessEncodingWithLimit tags iso limit = [
+    testNameTags "isomorphism" ("isomorphism" : tags)
+                 (testIsomorphism iso limit),
+    testNameTags "size" ("size" : tags) (size iso @?= Nothing)
   ]
 
-testInfDimlessEncoding iso = testInfDimlessEncodingWithLimit iso 10000
+testInfDimlessEncoding tags iso = testInfDimlessEncodingWithLimit tags iso 10000
+
+testFiniteEncodingWithVals tags iso vals = [
+    testNameTags "isomorphism" ("isomorphism" : tags)
+                 (testEncodingVals iso vals),
+    testNameTags "size" ("size" : tags)
+                 (size iso @?= Just (toInteger (length vals)))
+  ]
 
 integralEncodingInteger :: Encoding () Integer
 integralEncodingInteger = integralEncoding
@@ -123,162 +132,88 @@ intervalEncodingWord8 = intervalEncoding
 testlist :: [Test]
 testlist = [
     -- Identity encoding tests
-    testNameTags "identityEncoding_isomorphism" ["identity", "isomorphism"]
-                 (testInfDimlessEncoding identityEncoding),
-    testNameTags "identityEncoding_size" ["identity", "size"]
-                 (size identityEncoding @?= Nothing),
+    "identityEncoding" ~:  testInfDimlessEncoding ["Integer"] identityEncoding,
     -- Integral encoding tests
-    testNameTags "integralEncodingInteger_isomorphism"
-                 ["integral", "Integer", "isomorphism"]
-                 (testInfDimlessEncoding integralEncodingInteger),
-    testNameTags "integralEncodingInteger_size"
-                 ["integral", "Integer", "size"]
-                 (size integralEncodingInteger @?= Nothing),
-    testNameTags "integralEncodingInt64_isomorphism"
-                 ["integral", "Int64", "isomorphism"]
-                 (testInfDimlessEncoding integralEncodingInt64),
-    testNameTags "integralEncodingInt64_size"
-                 ["integral", "Int64", "size"]
-                 (size integralEncodingInt64 @?= Nothing),
-    testNameTags "integralEncodingWord64_isomorphism"
-                 ["integral", "Word64", "isomorphism"]
-                 (testInfDimlessEncoding integralEncodingWord64),
-    testNameTags "integralEncodingWord64_size"
-                 ["integral", "Word64", "size"]
-                 (size integralEncodingWord64 @?= Nothing),
-    testNameTags "integralEncodingInt8_isomorphism"
-                 ["integral", "Int8", "isomorphism"]
-                 (testEncodingVals integralEncodingInt8 [-128..127]),
-    testNameTags "integralEncodingInt8_size"
-                 ["integral", "Int8", "size"]
-                 (size integralEncodingInt8 @?= Nothing),
-    testNameTags "integralEncodingWord8_isomorphism"
-                 ["integral", "Word8", "isomorphism"]
-                 (testEncodingVals integralEncodingWord8 [0..255]),
-    testNameTags "integralEncodingWord8_size"
-                 ["integral", "Word8", "size"]
-                 (size integralEncodingWord8 @?= Nothing),
+    "integralEncodingInteger" ~:
+      testInfDimlessEncoding ["integral", "Integer"] integralEncodingInteger,
+    "integralEncodingInt64" ~:
+      testInfDimlessEncoding ["integral", "Int64"] integralEncodingInt64,
+    "integralEncodingWord64" ~:
+      testInfDimlessEncoding ["integral", "Word64"] integralEncodingInt64,
+    "integralEncodingInt8" ~:
+      testInfDimlessEncodingWithLimit ["integral", "Int8"]
+                                       integralEncodingInt8 255,
+    "integralEncodingWord64" ~:
+      testInfDimlessEncodingWithLimit ["integral", "Word8"]
+                                       integralEncodingWord8 255,
     -- Interval encoding tests
-    testNameTags "intervalEncodingInteger_0_10000_isomorphism"
-                 ["interval", "Integer", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingInteger 0 10000) [0..10000]),
-    testNameTags "intervalEncodingInteger_0_10000_size"
-                 ["interval", "Integer", "size"]
-                 (size (intervalEncodingInteger 0 10000) @?= Just 10001),
-    testNameTags "intervalEncodingInteger_2000_10000_isomorphism"
-                 ["interval", "Integer", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingInteger 2000 10000)
-                                   [2000..10000]),
-    testNameTags "intervalEncodingInteger_2000_10000_size"
-                 ["interval", "Integer", "size"]
-                 (size (intervalEncodingInteger 2000 10000) @?= Just 8001),
-    testNameTags "intervalEncodingInteger_neg2000_2000_isomorphism"
-                 ["interval", "Integer", "isomorphism"]
-                 (testEncodingVals (intervalEncodingInteger (-2000) 2000)
-                                   [-2000..2000]),
-    testNameTags "intervalEncodingInteger_neg2000_2000_size"
-                 ["interval", "Integer", "size"]
-                 (size (intervalEncodingInteger (-2000) 2000) @?= Just 4001),
-    testNameTags "intervalEncodingInteger_neg10000_neg2000_isomorphism"
-                 ["interval", "Integer", "isomorphism"]
-                 (testEncodingVals (intervalEncodingInteger (-10000) (-2000))
-                                   [-10000..(-2000)]),
-    testNameTags "intervalEncodingInteger_neg10000_neg2000_size"
-                 ["interval", "Integer", "size"]
-                 (size (intervalEncodingInteger (-10000) (-2000)) @?= Just 8001),
-    testNameTags "intervalEncodingInt64_0_10000_isomorphism"
-                 ["interval", "Int64", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingInt64 0 10000) [0..10000]),
-    testNameTags "intervalEncodingInt64_0_10000_size"
-                 ["interval", "Int64", "size"]
-                 (size (intervalEncodingInt64 0 10000) @?= Just 10001),
-    testNameTags "intervalEncodingInt64_2000_10000_isomorphism"
-                 ["interval", "Int64", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingInt64 2000 10000)
-                                   [2000..10000]),
-    testNameTags "intervalEncodingInt64_2000_10000_size"
-                 ["interval", "Int64", "size"]
-                 (size (intervalEncodingInt64 2000 10000) @?= Just 8001),
-    testNameTags "intervalEncodingInt64_neg2000_2000_isomorphism"
-                 ["interval", "Int64", "isomorphism"]
-                 (testEncodingVals (intervalEncodingInt64 (-2000) 2000)
-                                   [-2000..2000]),
-    testNameTags "intervalEncodingInt64_neg2000_2000_size"
-                 ["interval", "Int64", "size"]
-                 (size (intervalEncodingInt64 (-2000) 2000) @?= Just 4001),
-    testNameTags "intervalEncodingInt64_neg10000_neg2000_isomorphism"
-                 ["interval", "Int64", "isomorphism"]
-                 (testEncodingVals (intervalEncodingInt64 (-10000) (-2000))
-                                   [-10000..(-2000)]),
-    testNameTags "intervalEncodingInt64_neg10000_neg2000_size"
-                 ["interval", "Int64", "size"]
-                 (size (intervalEncodingInt64 (-10000) (-2000)) @?= Just 8001),
-    testNameTags "intervalEncodingWord64_0_10000_isomorphism"
-                 ["interval", "Word64", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingWord64 0 10000) [0..10000]),
-    testNameTags "intervalEncodingWord64_0_10000_size"
-                 ["interval", "Word64", "size"]
-                 (size (intervalEncodingWord64 0 10000) @?= Just 10001),
-    testNameTags "intervalEncodingWord64_2000_10000_isomorphism"
-                 ["interval", "Word64", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingWord64 2000 10000)
-                                   [2000..10000]),
-    testNameTags "intervalEncodingWord64_2000_10000_size"
-                 ["interval", "Word64", "size"]
-                 (size (intervalEncodingWord64 2000 10000) @?= Just 8001),
-    testNameTags "intervalEncodingInt8_0_100_isomorphism"
-                 ["interval", "Int8", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingInt8 0 100) [0..100]),
-    testNameTags "intervalEncodingInt8_0_100_size"
-                 ["interval", "Int8", "size"]
-                 (size (intervalEncodingInt8 0 100) @?= Just 101),
-    testNameTags "intervalEncodingInt8_20_100_isomorphism"
-                 ["interval", "Int8", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingInt8 20 100)
-                                   [20..100]),
-    testNameTags "intervalEncodingInt8_20_100_size"
-                 ["interval", "Int8", "size"]
-                 (size (intervalEncodingInt8 20 100) @?= Just 81),
-    testNameTags "intervalEncodingInt8_neg20_20_isomorphism"
-                 ["interval", "Int8", "isomorphism"]
-                 (testEncodingVals (intervalEncodingInt8 (-20) 20)
-                                   [-20..20]),
-    testNameTags "intervalEncodingInt8_neg20_20_size"
-                 ["interval", "Int8", "size"]
-                 (size (intervalEncodingInt8 (-20) 20) @?= Just 41),
-    testNameTags "intervalEncodingInt8_neg100_neg20_isomorphism"
-                 ["interval", "Int8", "isomorphism"]
-                 (testEncodingVals (intervalEncodingInt8 (-100) (-20))
-                                   [-100..(-20)]),
-    testNameTags "intervalEncodingInt8_neg100_neg20_size"
-                 ["interval", "Int8", "size"]
-                 (size (intervalEncodingInt8 (-100) (-20)) @?= Just 81),
-    testNameTags "intervalEncodingInt8_neg128_127_isomorphism"
-                 ["interval", "Int8", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingInt8 (-128) 127)
-                                   [-128..127]),
-    testNameTags "intervalEncodingInt8_neg128_127_size"
-                 ["interval", "Int8", "size"]
-                 (size (intervalEncodingInt8 (-128) 127) @?= Just 256),
-    testNameTags "intervalEncodingWord8_0_100_isomorphism"
-                 ["interval", "Word8", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingWord8 0 100) [0..100]),
-    testNameTags "intervalEncodingWord8_0_100_size"
-                 ["interval", "Word8", "size"]
-                 (size (intervalEncodingWord8 0 100) @?= Just 101),
-    testNameTags "intervalEncodingWord8_20_100_isomorphism"
-                 ["interval", "Word8", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingWord8 20 100)
-                                   [20..100]),
-    testNameTags "intervalEncodingWord8_20_100_size"
-                 ["interval", "Word8", "size"]
-                 (size (intervalEncodingWord8 20 100) @?= Just 81),
-    testNameTags "intervalEncodingWord8_0_255_isomorphism"
-                 ["interval", "Word8", "isomorhpism"]
-                 (testEncodingVals (intervalEncodingWord8 0 255) [0..255]),
-    testNameTags "intervalEncodingWord8_0_100_size"
-                 ["interval", "Word8", "size"]
-                 (size (intervalEncodingWord8 0 255) @?= Just 256)
+    "intervalEncodingInteger_0_10000" ~:
+      testFiniteEncodingWithVals ["interval", "Integer", "isomorhpism"]
+                                 (intervalEncodingInteger 0 10000) [0..10000],
+    "intervalEncodingInteger_2000_10000" ~:
+      testFiniteEncodingWithVals ["interval", "Integer", "isomorhpism"]
+                                 (intervalEncodingInteger 2000 10000)
+                                 [2000..10000],
+    "intervalEncodingInteger_neg2000_2000" ~:
+      testFiniteEncodingWithVals ["interval", "Integer", "isomorhpism"]
+                                 (intervalEncodingInteger (-2000) 2000)
+                                 [-2000..2000],
+    "intervalEncodingInteger_neg10000_neg2000" ~:
+      testFiniteEncodingWithVals ["interval", "Integer", "isomorhpism"]
+                                 (intervalEncodingInteger (-10000) (-2000))
+                                 [-10000..(-2000)],
+    "intervalEncodingInt64_0_10000" ~:
+      testFiniteEncodingWithVals ["interval", "Int64", "isomorhpism"]
+                                 (intervalEncodingInt64 0 10000) [0..10000],
+    "intervalEncodingInt64_2000_10000" ~:
+      testFiniteEncodingWithVals ["interval", "Int64", "isomorhpism"]
+                                 (intervalEncodingInt64 2000 10000)
+                                 [2000..10000],
+    "intervalEncodingInt64_neg2000_2000" ~:
+      testFiniteEncodingWithVals ["interval", "Int64", "isomorhpism"]
+                                 (intervalEncodingInt64 (-2000) 2000)
+                                 [-2000..2000],
+    "intervalEncodingInt64_neg10000_neg2000" ~:
+      testFiniteEncodingWithVals ["interval", "Int64", "isomorhpism"]
+                                 (intervalEncodingInt64 (-10000) (-2000))
+                                 [-10000..(-2000)],
+    "intervalEncodingWord64_0_10000" ~:
+      testFiniteEncodingWithVals ["interval", "Word64", "isomorhpism"]
+                                 (intervalEncodingWord64 0 10000) [0..10000],
+    "intervalEncodingWord64_2000_10000" ~:
+      testFiniteEncodingWithVals ["interval", "Word64", "isomorhpism"]
+                                 (intervalEncodingWord64 2000 10000)
+                                 [2000..10000],
+    "intervalEncodingInt8_0_100" ~:
+      testFiniteEncodingWithVals ["interval", "Int8", "isomorhpism"]
+                                 (intervalEncodingInt8 0 100) [0..100],
+    "intervalEncodingInt8_20_100" ~:
+      testFiniteEncodingWithVals ["interval", "Int8", "isomorhpism"]
+                                 (intervalEncodingInt8 20 100)
+                                 [20..100],
+    "intervalEncodingInt8_neg20_20" ~:
+      testFiniteEncodingWithVals ["interval", "Int8", "isomorhpism"]
+                                 (intervalEncodingInt8 (-20) 20)
+                                 [-20..20],
+    "intervalEncodingInt8_neg100_neg20" ~:
+      testFiniteEncodingWithVals ["interval", "Int8", "isomorhpism"]
+                                 (intervalEncodingInt8 (-100) (-20))
+                                 [-100..(-20)],
+    "intervalEncodingInt8_neg128_127" ~:
+      testFiniteEncodingWithVals ["interval", "Int8", "isomorhpism"]
+                                 (intervalEncodingInt8 (-128) 127)
+                                 [-128..127],
+    "intervalEncodingWord8_0_100" ~:
+      testFiniteEncodingWithVals ["interval", "Word8", "isomorhpism"]
+                                 (intervalEncodingWord8 0 100) [0..100],
+    "intervalEncodingWord8_20_100" ~:
+      testFiniteEncodingWithVals ["interval", "Word8", "isomorhpism"]
+                                 (intervalEncodingWord8 20 100)
+                                 [20..100],
+    "intervalEncodingWord8_0_255" ~:
+      testFiniteEncodingWithVals ["interval", "Word8", "isomorhpism"]
+                                 (intervalEncodingWord8 0 255)
+                                 [0..255]
   ]
 
 tests :: Test
