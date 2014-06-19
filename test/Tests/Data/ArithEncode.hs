@@ -252,8 +252,23 @@ intervalEncodingWord8 = intervalEncoding
 
 optionalEncoding = optional (fromHashableList ["A", "B", "C", "D"])
 
-optionalEncodingTests =
-  [ testNameTags "isomorphism" ["isomorphism", "optional", "fromHashableList"]
+integralEncodingTests = [
+    "Integer" ~:
+      testInfDimlessEncoding ["integral", "Integer"] integralEncodingInteger,
+    "Int64" ~:
+      testInfDimlessEncoding ["integral", "Int64"] integralEncodingInt64,
+    "Word64" ~:
+      testInfDimlessEncoding ["integral", "Word64"] integralEncodingInt64,
+    "Int8" ~:
+      testInfDimlessEncodingWithLimit ["integral", "Int8"]
+                                       integralEncodingInt8 255,
+    "Word64" ~:
+      testInfDimlessEncodingWithLimit ["integral", "Word8"]
+                                       integralEncodingWord8 255
+  ]
+
+optionalEncodingTests = [
+    testNameTags "isomorphism" ["isomorphism", "optional", "fromHashableList"]
                  (testEncodingVals optionalEncoding
                                    [Nothing, Just "A", Just "B",
                                     Just "C", Just "D"]),
@@ -322,18 +337,7 @@ testlist = [
     -- Identity encoding tests
     "identityEncoding" ~:  testInfDimlessEncoding ["Integer"] identityEncoding,
     -- Integral encoding tests
-    "integralEncodingInteger" ~:
-      testInfDimlessEncoding ["integral", "Integer"] integralEncodingInteger,
-    "integralEncodingInt64" ~:
-      testInfDimlessEncoding ["integral", "Int64"] integralEncodingInt64,
-    "integralEncodingWord64" ~:
-      testInfDimlessEncoding ["integral", "Word64"] integralEncodingInt64,
-    "integralEncodingInt8" ~:
-      testInfDimlessEncodingWithLimit ["integral", "Int8"]
-                                       integralEncodingInt8 255,
-    "integralEncodingWord64" ~:
-      testInfDimlessEncodingWithLimit ["integral", "Word8"]
-                                       integralEncodingWord8 255,
+    "integralEncoding" ~: integralEncodingTests,
     -- Interval encoding tests
     "intervalEncodingInteger_0_10000" ~:
       testFiniteEncodingWithVals ["interval", "Integer"]
