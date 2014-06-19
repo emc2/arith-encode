@@ -267,6 +267,87 @@ integralEncodingTests = [
                                        integralEncodingWord8 255
   ]
 
+intervalEncodingTests = [
+    "Integer" ~: [
+        "0_10000" ~:
+          testFiniteEncodingWithVals ["interval", "Integer"]
+                                     (intervalEncodingInteger 0 10000)
+                                     [0..10000],
+        "2000_10000" ~:
+          testFiniteEncodingWithVals ["interval", "Integer"]
+                                     (intervalEncodingInteger 2000 10000)
+                                     [2000..10000],
+        "neg2000_2000" ~:
+          testFiniteEncodingWithVals ["interval", "Integer"]
+                                     (intervalEncodingInteger (-2000) 2000)
+                                     [-2000..2000],
+        "neg10000_neg2000" ~:
+          testFiniteEncodingWithVals ["interval", "Integer"]
+                                     (intervalEncodingInteger (-10000) (-2000))
+                                     [-10000..(-2000)]
+      ],
+    "Int64" ~: [
+        "0_10000" ~:
+          testFiniteEncodingWithVals ["interval", "Int64"]
+                                     (intervalEncodingInt64 0 10000) [0..10000],
+        "2000_10000" ~:
+          testFiniteEncodingWithVals ["interval", "Int64"]
+                                     (intervalEncodingInt64 2000 10000)
+                                     [2000..10000],
+        "neg2000_2000" ~:
+          testFiniteEncodingWithVals ["interval", "Int64"]
+                                     (intervalEncodingInt64 (-2000) 2000)
+                                     [-2000..2000],
+        "neg10000_neg2000" ~:
+          testFiniteEncodingWithVals ["interval", "Int64"]
+                                     (intervalEncodingInt64 (-10000) (-2000))
+                                     [-10000..(-2000)]
+      ],
+    "Word64" ~: [
+        "0_10000" ~:
+          testFiniteEncodingWithVals ["interval", "Word64"]
+                                     (intervalEncodingWord64 0 10000) [0..10000],
+        "2000_10000" ~:
+          testFiniteEncodingWithVals ["interval", "Word64"]
+                                     (intervalEncodingWord64 2000 10000)
+                                     [2000..10000]
+      ],
+    "Int8" ~: [
+        "0_100" ~:
+          testFiniteEncodingWithVals ["interval", "Int8"]
+                                     (intervalEncodingInt8 0 100) [0..100],
+        "20_100" ~:
+          testFiniteEncodingWithVals ["interval", "Int8"]
+                                     (intervalEncodingInt8 20 100)
+                                     [20..100],
+        "neg20_20" ~:
+          testFiniteEncodingWithVals ["interval", "Int8"]
+                                     (intervalEncodingInt8 (-20) 20)
+                                     [-20..20],
+        "neg100_neg20" ~:
+          testFiniteEncodingWithVals ["interval", "Int8"]
+                                     (intervalEncodingInt8 (-100) (-20))
+                                     [-100..(-20)],
+        "neg128_127" ~:
+          testFiniteEncodingWithVals ["interval", "Int8"]
+                                     (intervalEncodingInt8 (-128) 127)
+                                     [-128..127]
+      ],
+    "Word8" ~: [
+        "0_100" ~:
+          testFiniteEncodingWithVals ["interval", "Word8"]
+                                     (intervalEncodingWord8 0 100) [0..100],
+        "20_100" ~:
+          testFiniteEncodingWithVals ["interval", "Word8"]
+                                     (intervalEncodingWord8 20 100)
+                                     [20..100],
+        "0_255" ~:
+          testFiniteEncodingWithVals ["interval", "Word8"]
+                                     (intervalEncodingWord8 0 255)
+                                     [0..255]
+      ]
+  ]
+
 optionalEncodingTests = [
     testNameTags "isomorphism" ["isomorphism", "optional", "fromHashableList"]
                  (testEncodingVals optionalEncoding
@@ -291,7 +372,7 @@ optionalEncodingTests = [
 
 makeExcludeTest (vals, excludes) =
   let
-    name = concat ("exclude_" : excludes)
+    name = concat excludes
   in
     name ~: testExclude ["linearDepthEncoding", "exclude"]
                         (exclude excludes (linearDepthEncoding vals))
@@ -334,78 +415,9 @@ excludeTests =
 
 testlist :: [Test]
 testlist = [
-    -- Identity encoding tests
-    "identityEncoding" ~:  testInfDimlessEncoding ["Integer"] identityEncoding,
-    -- Integral encoding tests
+    "identityEncoding" ~: testInfDimlessEncoding ["Integer"] identityEncoding,
     "integralEncoding" ~: integralEncodingTests,
-    -- Interval encoding tests
-    "intervalEncodingInteger_0_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Integer"]
-                                 (intervalEncodingInteger 0 10000) [0..10000],
-    "intervalEncodingInteger_2000_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Integer"]
-                                 (intervalEncodingInteger 2000 10000)
-                                 [2000..10000],
-    "intervalEncodingInteger_neg2000_2000" ~:
-      testFiniteEncodingWithVals ["interval", "Integer"]
-                                 (intervalEncodingInteger (-2000) 2000)
-                                 [-2000..2000],
-    "intervalEncodingInteger_neg10000_neg2000" ~:
-      testFiniteEncodingWithVals ["interval", "Integer"]
-                                 (intervalEncodingInteger (-10000) (-2000))
-                                 [-10000..(-2000)],
-    "intervalEncodingInt64_0_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Int64"]
-                                 (intervalEncodingInt64 0 10000) [0..10000],
-    "intervalEncodingInt64_2000_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Int64"]
-                                 (intervalEncodingInt64 2000 10000)
-                                 [2000..10000],
-    "intervalEncodingInt64_neg2000_2000" ~:
-      testFiniteEncodingWithVals ["interval", "Int64"]
-                                 (intervalEncodingInt64 (-2000) 2000)
-                                 [-2000..2000],
-    "intervalEncodingInt64_neg10000_neg2000" ~:
-      testFiniteEncodingWithVals ["interval", "Int64"]
-                                 (intervalEncodingInt64 (-10000) (-2000))
-                                 [-10000..(-2000)],
-    "intervalEncodingWord64_0_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Word64"]
-                                 (intervalEncodingWord64 0 10000) [0..10000],
-    "intervalEncodingWord64_2000_10000" ~:
-      testFiniteEncodingWithVals ["interval", "Word64"]
-                                 (intervalEncodingWord64 2000 10000)
-                                 [2000..10000],
-    "intervalEncodingInt8_0_100" ~:
-      testFiniteEncodingWithVals ["interval", "Int8"]
-                                 (intervalEncodingInt8 0 100) [0..100],
-    "intervalEncodingInt8_20_100" ~:
-      testFiniteEncodingWithVals ["interval", "Int8"]
-                                 (intervalEncodingInt8 20 100)
-                                 [20..100],
-    "intervalEncodingInt8_neg20_20" ~:
-      testFiniteEncodingWithVals ["interval", "Int8"]
-                                 (intervalEncodingInt8 (-20) 20)
-                                 [-20..20],
-    "intervalEncodingInt8_neg100_neg20" ~:
-      testFiniteEncodingWithVals ["interval", "Int8"]
-                                 (intervalEncodingInt8 (-100) (-20))
-                                 [-100..(-20)],
-    "intervalEncodingInt8_neg128_127" ~:
-      testFiniteEncodingWithVals ["interval", "Int8"]
-                                 (intervalEncodingInt8 (-128) 127)
-                                 [-128..127],
-    "intervalEncodingWord8_0_100" ~:
-      testFiniteEncodingWithVals ["interval", "Word8"]
-                                 (intervalEncodingWord8 0 100) [0..100],
-    "intervalEncodingWord8_20_100" ~:
-      testFiniteEncodingWithVals ["interval", "Word8"]
-                                 (intervalEncodingWord8 20 100)
-                                 [20..100],
-    "intervalEncodingWord8_0_255" ~:
-      testFiniteEncodingWithVals ["interval", "Word8"]
-                                 (intervalEncodingWord8 0 255)
-                                 [0..255],
+    "intervalEncoding" ~: intervalEncodingTests,
     "fromHashableList" ~:
       testFiniteEncodingWithVals ["fromHashableList"]
                                  (fromHashableList ["A", "B", "C", "D", "E"])
