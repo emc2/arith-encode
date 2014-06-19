@@ -40,7 +40,24 @@ import Data.Word
 import Data.Set(Set)
 import Test.HUnitPlus.Base
 
+import qualified Data.Array as Array
+import qualified Data.HashMap as HashMap
 import qualified Data.HashSet as Set
+
+linearDepthEncoding :: (Hashable ty, Ord ty) => [ty] -> Encoding () ty
+linearDepthEncoding elems =
+  let
+    len = length elems
+    revmap = Array.listArray (0, len) elems
+    fwdmap = HashMap.fromList (zip elems [0..len])
+    encodefunc = toInteger . (HashMap.!) fwdmap
+    decodefunc = (Array.!) revmap . fromInteger
+    sizeval = Just (toInteger len)
+    maxdepthfunc () = Just (toInteger (len - 1))
+    depthfunc () = toInteger . (HashMap.!) fwdmap
+    highindexfunc () = Just
+  in
+    mkEncoding encodefunc decodefunc sizeval maxdepthfunc depthfunc highindexfunc
 
 testIsomorphism :: (Hashable ty, Ord ty, Show ty) =>
                    Encoding dim ty -> Integer -> IO ()
@@ -107,6 +124,33 @@ testFiniteEncodingWithVals tags iso vals =
       testNameTags "maxDepth" ("maxDepth" : tags) (maxDepth iso () @?= Just 0),
       testNameTags "highestIndex" ("highestIndex" : tags)
                    (highestIndex iso () 0 @?= Just isosize) ]
+
+testLinearDepthEncoding tags iso vals =
+  let
+    isosize = toInteger (length vals)
+    zipped = zip [0..isosize] vals
+
+    testDepth [] = return ()
+    testDepth ((depthval, val) : rest) =
+      do
+        depth iso () val @?= depthval
+        testDepth rest
+
+    testHighestIndex 0 = highestIndex iso () 0 @?= Just 0
+    testHighestIndex idx =
+      do
+        highestIndex iso () idx @?= Just idx
+        testHighestIndex (idx - 1)
+  in
+    [ testNameTags "isomorphism" ("isomorphism" : tags)
+                   (testEncodingVals iso vals),
+      testNameTags "size" ("size" : tags)
+                   (size iso @?= Just isosize),
+      testNameTags "maxDepth" ("maxDepth" : tags)
+                   (maxDepth iso () @?= Just (isosize - 1)),
+      testNameTags "testDepth" ("depth" : tags) (testDepth zipped),
+      testNameTags "highestIndex" ("highestIndex" : tags)
+                   (testHighestIndex (isosize - 1)) ]
 
 integralEncodingInteger :: Encoding () Integer
 integralEncodingInteger = integralEncoding
@@ -262,7 +306,11 @@ testlist = [
       testFiniteEncodingWithVals ["nonzero", "fromHashableList"]
                                  (nonzero (fromHashableList ["A", "B", "C",
                                                              "D", "E", "F"]))
-                                 ["B", "C", "D", "E", "F"]
+                                 ["B", "C", "D", "E", "F"],
+    "linearDepthEncoding" ~:
+      testLinearDepthEncoding ["linearDepthEncoding"]
+                              (linearDepthEncoding ["A", "B", "C", "D", "E"])
+                              ["A", "B", "C", "D", "E"]
   ]
 
 tests :: Test
