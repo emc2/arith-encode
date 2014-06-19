@@ -310,7 +310,135 @@ testlist = [
     "linearDepthEncoding" ~:
       testLinearDepthEncoding ["linearDepthEncoding"]
                               (linearDepthEncoding ["A", "B", "C", "D", "E"])
-                              ["A", "B", "C", "D", "E"]
+                              ["A", "B", "C", "D", "E"],
+    "exclude_empty" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude [] (linearDepthEncoding ["A", "B", "C",
+                                                                "D", "E"]))
+                              ["A", "B", "C", "D", "E"],
+    "exclude_A" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["A"] (linearDepthEncoding ["A", "B", "C",
+                                                                   "D", "E"]))
+                              ["B", "C", "D", "E"],
+    "exclude_B" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["B"] (linearDepthEncoding ["A", "B", "C",
+                                                                   "D", "E"]))
+                              ["A", "C", "D", "E"],
+    "exclude_E" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["E"] (linearDepthEncoding ["A", "B", "C",
+                                                                   "D", "E"]))
+                              ["A", "B", "C", "D"],
+    "exclude_AB" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["A", "B"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["C", "D", "E"],
+    "exclude_BA" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["B", "A"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["C", "D", "E"],
+    "exclude_AC" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["A", "C"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["B", "D", "E"],
+    "exclude_CA" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["C", "A"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["B", "D", "E"],
+    "exclude_BC" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["B", "C"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["A", "D", "E"],
+    "exclude_CB" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["C", "B"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["A", "D", "E"],
+    "exclude_AE" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["A", "E"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["B", "C", "D"],
+    "exclude_EA" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["E", "A"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["B", "C", "D"],
+    "exclude_BE" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["B", "E"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["A", "C", "D"],
+    "exclude_EB" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["E", "B"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["A", "C", "D"],
+    "exclude_ABC" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["A", "B", "C"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["D", "E"],
+    "exclude_ABD" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["A", "B", "D"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["C", "E"],
+    "exclude_BCD" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["B", "C", "D"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["A", "E"],
+    "exclude_BDE" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["B", "D", "E"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["A", "C"],
+    "exclude_CDE" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["C", "D", "E"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["A", "B"],
+    "exclude_ABCD" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["A", "B", "C", "D"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["E"],
+    "exclude_ABCE" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["A", "B", "C", "E"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["D"],
+    "exclude_BCDE" ~:
+      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
+                              (exclude ["B", "C", "D", "E"]
+                                       (linearDepthEncoding ["A", "B", "C",
+                                                             "D", "E"]))
+                              ["A"]
   ]
 
 tests :: Test

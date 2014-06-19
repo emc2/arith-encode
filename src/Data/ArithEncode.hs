@@ -103,14 +103,35 @@ module Data.ArithEncode(
        wrap,
        optional,
        mandatory,
-       nonzero
+       nonzero,
+       exclude{-,
+       either,
+       disjointUnion,
+       product2,
+       product3,
+       product4,
+       product5,
+       product6,
+       product7,
+       product8,
+       product9,
+       product10,
+       pair,
+       triple,
+       quad,
+       quint,
+       finiteFunc,
+       finiteSet,
+       finiteSeq-}
        ) where
 
 import Control.Exception
 import Data.Bits
 import Data.Hashable
+import Data.List hiding (elem)
 import Data.Maybe
 import Data.Typeable
+import Prelude hiding (elem)
 
 import qualified Data.Array as Array
 import qualified Data.HashMap as HashMap
@@ -135,7 +156,7 @@ data Encoding dim ty =
     -- | Decode a positive integer into a @ty@.
     encDecode :: Integer -> ty,
     -- | The size of an encoding, or 'Nothing' if it is infinite.
-    encSize :: Maybe Integer,
+    encSize :: !(Maybe Integer),
     -- | Get the maximum depth of a given dimension.
     encMaxDepth :: dim -> Maybe Integer,
     -- | Get the depth of a given @ty@ in a given dimension.
@@ -442,3 +463,123 @@ nonzero enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
   in
     enc { encEncode = newencode, encDecode = newdecode,
           encSize = newsize, encHighestIndex = newhighestindex }
+
+-- | A simple binary tree structure, for use with exclude.
+data BinTree key val =
+    Branch key val (BinTree key val) (BinTree key val)
+  | Nil
+
+-- | Simple binary tree lookup, for use with exclude.
+closestBelow :: (Ord key) => key -> BinTree key val -> Maybe val
+closestBelow target =
+  let
+    closestBelow' out Nil = out
+    closestBelow' out (Branch k v left right) =
+      case compare k target of
+        LT -> closestBelow' (Just v) right
+        _ -> closestBelow' out left
+  in
+    closestBelow' Nothing
+
+-- | Simple binary tree lookup, for use with exclude.
+closestWithin :: (Ord key) => key -> BinTree key val -> Maybe val
+closestWithin target =
+  let
+    closestWithin' out Nil = out
+    closestWithin' out (Branch k v left right) =
+      case compare k target of
+        GT -> closestWithin' out left
+        _ -> closestWithin' (Just v) right
+  in
+    closestWithin' Nothing
+
+-- | Convert a list to a binary tree, for use with excludes.
+toBinTree :: [(key, val)] -> BinTree key val
+toBinTree vals =
+  let
+    toBinTree' 0 [] = Nil
+    toBinTree' 0 _ = error "Zero size with non-empty list"
+    toBinTree' _ [] = error "Empty list with non-zero size"
+    toBinTree' len vals' =
+      let
+        halflo = len `shiftL` 1
+        halfhi = len - halflo
+        (lows, (k, v) : highs) = splitAt halflo vals'
+        left = toBinTree' halflo lows
+        right = toBinTree' (halfhi - 1) highs
+      in
+        Branch k v left right
+  in
+    toBinTree' (length vals) vals
+
+-- | Removes the mapping to the items in the list.  The resulting
+-- @encode@, @decode@, and @highestIndex@ are O(@length excludes@), so
+-- this should only be used with a very short excludes list.
+exclude :: [ty] -> Encoding dim ty -> Encoding dim ty
+exclude [] enc = enc
+exclude excludes enc @ Encoding { encEncode = encodefunc,
+                                  encDecode = decodefunc,
+                                  encHighestIndex = highindexfunc,
+                                  encSize = sizeval } =
+  let
+    sortedlist = sort (map encodefunc excludes)
+
+    fwdoffsets :: [(Integer, Integer)]
+    (_, fwdoffsets) = mapAccumR (\offset v -> (offset, (v, offset))) 1 sortedlist
+    fwdtree = toBinTree fwdoffsets
+
+    revoffsets :: [(Integer, Integer)]
+    revoffsets =
+      let
+        foldfun :: (Integer, Integer) -> [(Integer, Integer)] ->
+                   [(Integer, Integer)]
+        foldfun elem @ (v, _) accum @ ((v', _) : rest)
+          | v == v' = elem : rest
+          | otherwise = elem : accum
+        foldfun _ _ = error "Should not fold over an empty list"
+
+        (first : adjusted) =
+          map (\(v, offset) -> (v - (offset - 1), offset)) fwdoffsets
+      in
+        foldr foldfun [first] adjusted
+
+    revtree = toBinTree revoffsets
+
+    toExcluded n =
+      case closestBelow n fwdtree of
+        Just offset -> n - offset
+        Nothing -> n
+
+    fromExcluded n =
+      case closestWithin n revtree of
+        Just offset -> n + offset
+        Nothing -> n
+
+    newEncode = toExcluded . encodefunc
+    newDecode = decodefunc . fromExcluded
+
+    newHighestIndex dim depthval =
+      do
+        ind <- highindexfunc dim depthval
+        return (toExcluded ind)
+
+    newSize =
+      do
+        n <- sizeval
+        return $! (n - (toInteger (length excludes)))
+  in
+    enc { encEncode = newEncode, encDecode = newDecode,
+          encSize = newSize, encHighestIndex = newHighestIndex }
+{-
+-- | An alias for @product2@.
+pair = product2
+
+-- | An alias for @product3@.
+triple = product3
+
+-- | An alias for @product4@.
+quad = product4
+
+-- | An alias for @product5@
+quint = product5
+-}
