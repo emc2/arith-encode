@@ -82,7 +82,7 @@ module Data.ArithEncode(
        mkInfDimlessEncoding,
 
        -- ** Using Encodings
-       IllegalArgument,
+       IllegalArgument(..),
        encode,
        decode,
        size,
@@ -468,9 +468,10 @@ nonzero enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
 data BinTree key val =
     Branch key val (BinTree key val) (BinTree key val)
   | Nil
+    deriving Show
 
 -- | Simple binary tree lookup, for use with exclude.
-closestBelow :: (Ord key) => key -> BinTree key val -> Maybe val
+closestBelow :: Ord key => key -> BinTree key val -> Maybe val
 closestBelow target =
   let
     closestBelow' out Nil = out
@@ -482,7 +483,7 @@ closestBelow target =
     closestBelow' Nothing
 
 -- | Simple binary tree lookup, for use with exclude.
-closestWithin :: (Ord key) => key -> BinTree key val -> Maybe val
+closestWithin :: Ord key => key -> BinTree key val -> Maybe val
 closestWithin target =
   let
     closestWithin' out Nil = out
@@ -502,7 +503,7 @@ toBinTree vals =
     toBinTree' _ [] = error "Empty list with non-zero size"
     toBinTree' len vals' =
       let
-        halflo = len `shiftL` 1
+        halflo = len `shiftR` 1
         halfhi = len - halflo
         (lows, (k, v) : highs) = splitAt halflo vals'
         left = toBinTree' halflo lows
@@ -525,15 +526,16 @@ exclude excludes enc @ Encoding { encEncode = encodefunc,
     sortedlist = sort (map encodefunc excludes)
 
     fwdoffsets :: [(Integer, Integer)]
-    (_, fwdoffsets) = mapAccumR (\offset v -> (offset, (v, offset))) 1 sortedlist
+    (_, fwdoffsets) = mapAccumL (\offset v -> (offset + 1, (v, offset)))
+                                1 sortedlist
     fwdtree = toBinTree fwdoffsets
 
     revoffsets :: [(Integer, Integer)]
     revoffsets =
       let
-        foldfun :: (Integer, Integer) -> [(Integer, Integer)] ->
+        foldfun :: [(Integer, Integer)] -> (Integer, Integer) ->
                    [(Integer, Integer)]
-        foldfun elem @ (v, _) accum @ ((v', _) : rest)
+        foldfun accum @ ((v', _) : rest) elem @ (v, _)
           | v == v' = elem : rest
           | otherwise = elem : accum
         foldfun _ _ = error "Should not fold over an empty list"
@@ -541,7 +543,7 @@ exclude excludes enc @ Encoding { encEncode = encodefunc,
         (first : adjusted) =
           map (\(v, offset) -> (v - (offset - 1), offset)) fwdoffsets
       in
-        foldr foldfun [first] adjusted
+        reverse (foldl foldfun [first] adjusted)
 
     revtree = toBinTree revoffsets
 
@@ -560,8 +562,12 @@ exclude excludes enc @ Encoding { encEncode = encodefunc,
 
     newHighestIndex dim depthval =
       do
-        ind <- highindexfunc dim depthval
-        return (toExcluded ind)
+        maxdepth <- highindexfunc dim depthval
+        case closestWithin maxdepth fwdtree of
+          Just offset
+            | offset <= maxdepth -> return (maxdepth - offset)
+            | otherwise -> return 0
+          Nothing -> return maxdepth
 
     newSize =
       do

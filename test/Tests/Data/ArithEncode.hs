@@ -35,6 +35,7 @@ import Data.ArithEncode
 import Data.Char
 import Data.Hashable
 import Data.Int
+import Data.List
 import Data.Maybe
 import Data.Word
 import Data.Set(Set)
@@ -105,6 +106,9 @@ testFiniteEncoding tags iso =
 testInfDimlessEncodingWithLimit tags iso limit = [
     testNameTags "isomorphism" ("isomorphism" : tags)
                  (testIsomorphism iso limit),
+    testNameTags "bounds_low" ("bounds" : tags)
+                 (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                               (return $! decode iso (-1))),
     testNameTags "size" ("size" : tags) (size iso @?= Nothing),
     testNameTags "maxDepth" ("maxDepth" : tags) (maxDepth iso () @?= Just 0),
     testNameTags "highestIndex" ("highestIndex" : tags)
@@ -121,6 +125,12 @@ testFiniteEncodingWithVals tags iso vals =
                    (testEncodingVals iso vals),
       testNameTags "size" ("size" : tags)
                    (size iso @?= Just isosize),
+      testNameTags "bounds_low" ("bounds" : tags)
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "bounds_high" ("bounds" : tags)
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (fromJust (size iso)))),
       testNameTags "maxDepth" ("maxDepth" : tags) (maxDepth iso () @?= Just 0),
       testNameTags "highestIndex" ("highestIndex" : tags)
                    (highestIndex iso () 0 @?= Just isosize) ]
@@ -137,18 +147,76 @@ testLinearDepthEncoding tags iso vals =
         testDepth rest
 
     testHighestIndex 0 = highestIndex iso () 0 @?= Just 0
-    testHighestIndex idx =
-      do
+    testHighestIndex depthval =
+      let
+        idx = case findIndex ((> depthval) . depth iso ()) vals of
+          Just 0 -> 0
+          Just idx -> toInteger (idx - 1)
+          Nothing -> isosize - 1
+      in do
         highestIndex iso () idx @?= Just idx
-        testHighestIndex (idx - 1)
+        testHighestIndex (depthval - 1)
   in
     [ testNameTags "isomorphism" ("isomorphism" : tags)
                    (testEncodingVals iso vals),
       testNameTags "size" ("size" : tags)
                    (size iso @?= Just isosize),
+      testNameTags "bounds_low" ("bounds" : tags)
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "bounds_high" ("bounds" : tags)
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (fromJust (size iso)))),
       testNameTags "maxDepth" ("maxDepth" : tags)
                    (maxDepth iso () @?= Just (isosize - 1)),
       testNameTags "testDepth" ("depth" : tags) (testDepth zipped),
+      testNameTags "highestIndex" ("highestIndex" : tags)
+                   (testHighestIndex (isosize - 1)) ]
+
+testExclude tags iso vals excludes =
+  let
+    isosize = toInteger (length vals - length excludes)
+    filtered = filter ((flip notElem) excludes) vals
+    zipped = zip [0..isosize] vals
+    filtereddepths = filter ((flip notElem) excludes . snd) zipped
+
+    testDepth [] = return ()
+    testDepth ((depthval, val) : rest) =
+      do
+        depth iso () val @?= depthval
+        testDepth rest
+
+    testHighestIndex 0 =
+      let
+        idx = case findIndex ((> 0) . depth iso ()) filtered of
+          Just 0 -> 0
+          Just idx -> toInteger (idx - 1)
+          Nothing -> isosize - 1
+      in do
+        highestIndex iso () 0 @?= Just idx
+    testHighestIndex depthval =
+      let
+        idx = case findIndex ((> depthval) . depth iso ()) filtered of
+          Just 0 -> 0
+          Just idx -> toInteger (idx - 1)
+          Nothing -> isosize - 1
+      in do
+        highestIndex iso () depthval @?= Just idx
+        testHighestIndex (depthval - 1)
+  in
+    [ testNameTags "isomorphism" ("isomorphism" : tags)
+                   (testEncodingVals iso filtered),
+      testNameTags "size" ("size" : tags)
+                   (size iso @?= Just isosize),
+      testNameTags "bounds_low" ("bounds" : tags)
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "bounds_high" ("bounds" : tags)
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (fromJust (size iso)))),
+      testNameTags "maxDepth" ("maxDepth" : tags)
+                   (maxDepth iso () @?= Just (toInteger ((length vals) - 1))),
+      testNameTags "testDepth" ("depth" : tags) (testDepth filtereddepths),
       testNameTags "highestIndex" ("highestIndex" : tags)
                    (testHighestIndex (isosize - 1)) ]
 
@@ -193,6 +261,12 @@ optionalEncodingTests =
                  (decode optionalEncoding 0 @?= Nothing),
     testNameTags "size" ["size", "optional"]
                  (size optionalEncoding @?= Just 5),
+    testNameTags "bounds_low" ["bounds", "optional"]
+                 (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                               (return $! decode optionalEncoding (-1))),
+    testNameTags "bounds_high" ["bounds", "optional"]
+                 (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                               (return $! decode optionalEncoding 5)),
     testNameTags "maxDepth" ["maxDepth", "optional"]
                  (maxDepth optionalEncoding () @?= Just 1),
     testNameTags "highestIndex_zero" ["highestIndex", "optional"]
@@ -317,128 +391,118 @@ testlist = [
                                                                 "D", "E"]))
                               ["A", "B", "C", "D", "E"],
     "exclude_A" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["A"] (linearDepthEncoding ["A", "B", "C",
-                                                                   "D", "E"]))
-                              ["B", "C", "D", "E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["A"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["A"],
     "exclude_B" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["B"] (linearDepthEncoding ["A", "B", "C",
-                                                                   "D", "E"]))
-                              ["A", "C", "D", "E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["B"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["B"],
     "exclude_E" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["E"] (linearDepthEncoding ["A", "B", "C",
-                                                                   "D", "E"]))
-                              ["A", "B", "C", "D"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["E"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["E"],
     "exclude_AB" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["A", "B"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["C", "D", "E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["A", "B"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["A", "B"],
     "exclude_BA" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["B", "A"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["C", "D", "E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["B", "A"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["B", "A"],
     "exclude_AC" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["A", "C"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["B", "D", "E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["A", "C"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["A", "C"],
     "exclude_CA" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["C", "A"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["B", "D", "E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["C", "A"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["C", "A"],
     "exclude_BC" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["B", "C"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["A", "D", "E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["B", "C"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["B", "C"],
     "exclude_CB" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["C", "B"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["A", "D", "E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["C", "B"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["C", "B"],
     "exclude_AE" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["A", "E"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["B", "C", "D"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["A", "E"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["A", "E"],
     "exclude_EA" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["E", "A"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["B", "C", "D"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["E", "A"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["E", "A"],
     "exclude_BE" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["B", "E"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["A", "C", "D"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["B", "E"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["B", "E"],
     "exclude_EB" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["E", "B"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["A", "C", "D"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["E", "B"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["E", "B"],
     "exclude_ABC" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["A", "B", "C"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["D", "E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["A", "B", "C"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["A", "B", "C"],
     "exclude_ABD" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["A", "B", "D"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["C", "E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["A", "B", "D"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["A", "B", "D"],
+    "exclude_ACE" ~:
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["A", "C", "E"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["A", "C", "E"],
     "exclude_BCD" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["B", "C", "D"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["A", "E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["B", "C", "D"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["B", "C", "D"],
     "exclude_BDE" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["B", "D", "E"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["A", "C"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["B", "D", "E"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["B", "D", "E"],
     "exclude_CDE" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["C", "D", "E"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["A", "B"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["C", "D", "E"] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["C", "D", "E"],
     "exclude_ABCD" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["A", "B", "C", "D"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["E"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["A", "B", "C", "D"] (linearDepthEncoding ["A", "B", "C",
+                                                            "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["A", "B", "C", "D"],
     "exclude_ABCE" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["A", "B", "C", "E"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["D"],
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["A", "B", "C", "E"] (linearDepthEncoding ["A", "B", "C",
+                                                            "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["A", "B", "C", "E"],
     "exclude_BCDE" ~:
-      testLinearDepthEncoding ["linearDepthEncoding", "exclude"]
-                              (exclude ["B", "C", "D", "E"]
-                                       (linearDepthEncoding ["A", "B", "C",
-                                                             "D", "E"]))
-                              ["A"]
+      testExclude
+        ["linearDepthEncoding", "exclude"]
+        (exclude ["B", "C", "D", "E"] (linearDepthEncoding ["A", "B", "C",
+                                                            "D", "E"]))
+        ["A", "B", "C", "D", "E"] ["B", "C", "D", "E"]
   ]
 
 tests :: Test
