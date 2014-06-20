@@ -615,13 +615,13 @@ either Encoding { encEncode = encode1, encDecode = decode1,
             leftIdxFwd' idx = idx `shiftL` 1
 
             rightIdxFwd' idx
-              | size1 >= idx = size1shifted + (idx - size1)
+              | size1 <= idx = size1shifted + (idx - size1)
               | otherwise = setBit (idx `shiftL` 1) 0
 
             leftIdxRev' idx = idx `shiftR` 1
 
             rightIdxRev' idx
-              | idx >= size1shifted = size1 + (idx - size1shifted)
+              | size1shifted <= idx = size1 + (idx - size1shifted)
               | otherwise = idx `shiftR` 1
           in
             (isLeft', leftIdxFwd', rightIdxFwd', leftIdxRev', rightIdxRev')
@@ -630,16 +630,16 @@ either Encoding { encEncode = encode1, encDecode = decode1,
         (_, Just size2) ->
           let
             size2shifted = (size2 `shiftL` 1)
-            isLeft' num = num > size2shifted || testBit num 0
+            isLeft' num = num > size2shifted || not (testBit num 0)
 
             leftIdxFwd' idx
-              | size2 >= idx = size2shifted + (idx - size2)
+              | size2 <= idx = size2shifted + (idx - size2)
               | otherwise = idx `shiftL` 1
 
             rightIdxFwd' idx = setBit (idx `shiftL` 1) 0
 
             leftIdxRev' idx
-              | idx >= size2shifted = size2 + (idx - size2shifted)
+              | size2shifted <= idx = size2 + (idx - size2shifted)
               | otherwise = idx `shiftR` 1
 
             rightIdxRev' idx = idx `shiftR` 1
@@ -660,7 +660,11 @@ either Encoding { encEncode = encode1, encDecode = decode1,
     newEncode = Either.either (leftIdxFwd . encode1) (rightIdxFwd . encode2)
     newDecode = eitherIndex (Left . decode1) (Right . decode2)
     newMaxDepth = Either.either maxDepth1 maxDepth2
-    newHighestIndex = Either.either highindex1 highindex2
+
+    newHighestIndex (Left dim) =
+      maybe Nothing (Just . leftIdxFwd . (\n -> n - 1)) . highindex1 dim
+    newHighestIndex (Right dim) =
+      maybe Nothing (Just . rightIdxFwd . (\n -> n - 1)) . highindex2 dim
 
     newDepth (Left dim) (Left val) = depth1 dim val
     newDepth (Right dim) (Right val) = depth2 dim val
