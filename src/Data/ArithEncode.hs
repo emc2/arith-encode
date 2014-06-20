@@ -469,7 +469,6 @@ nonzero enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
 data BinTree key val =
     Branch key val (BinTree key val) (BinTree key val)
   | Nil
-    deriving Show
 
 -- | Simple binary tree lookup, for use with exclude.
 closestBelow :: Ord key => key -> BinTree key val -> Maybe val
