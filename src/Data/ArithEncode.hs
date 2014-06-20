@@ -94,8 +94,8 @@ module Data.ArithEncode(
 
        -- ** Basic Encodings
        identity,
---       singleton,
-       integralEncoding,
+       singleton,
+       integral,
        interval,
        fromHashableList,
        fromOrdList,
@@ -298,9 +298,13 @@ highestIndex encoding = encHighestIndex encoding
 identity :: Encoding () Integer
 identity = mkInfDimlessEncoding id id
 
+-- | A singleton encoding.  Maps a singular value to 0.
+singleton :: ty -> Encoding () ty
+singleton val = mkDimlessEncoding (\_ -> 0) (\_ -> val) (Just 1)
+
 -- | An encoding of /all/ integers into the positive integers.
-integralEncoding :: Integral n => Encoding () n
-integralEncoding =
+integral :: Integral n => Encoding () n
+integral =
   let
     encodefunc num
       | num < 0 = ((abs (toInteger num) - 1) `shiftL` 1) `setBit` 0

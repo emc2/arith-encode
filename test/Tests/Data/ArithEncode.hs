@@ -221,20 +221,20 @@ testExclude tags iso vals excludes =
       testNameTags "highestIndex" ("highestIndex" : tags)
                    (testHighestIndex (isosize - 1)) ]
 
-integralEncodingInteger :: Encoding () Integer
-integralEncodingInteger = integralEncoding
+integralInteger :: Encoding () Integer
+integralInteger = integral
 
-integralEncodingInt64 :: Encoding () Int64
-integralEncodingInt64 = integralEncoding
+integralInt64 :: Encoding () Int64
+integralInt64 = integral
 
-integralEncodingWord64 :: Encoding () Int64
-integralEncodingWord64 = integralEncoding
+integralWord64 :: Encoding () Int64
+integralWord64 = integral
 
-integralEncodingInt8 :: Encoding () Int8
-integralEncodingInt8 = integralEncoding
+integralInt8 :: Encoding () Int8
+integralInt8 = integral
 
-integralEncodingWord8 :: Encoding () Int8
-integralEncodingWord8 = integralEncoding
+integralWord8 :: Encoding () Int8
+integralWord8 = integral
 
 intervalInteger :: Integer -> Integer -> Encoding () Integer
 intervalInteger = interval
@@ -253,19 +253,19 @@ intervalWord8 = interval
 
 optionalEncoding = optional (fromHashableList ["A", "B", "C", "D"])
 
-integralEncodingTests = [
+integralTests = [
     "Integer" ~:
-      testInfDimlessEncoding ["integral", "Integer"] integralEncodingInteger,
+      testInfDimlessEncoding ["integral", "Integer"] integralInteger,
     "Int64" ~:
-      testInfDimlessEncoding ["integral", "Int64"] integralEncodingInt64,
+      testInfDimlessEncoding ["integral", "Int64"] integralInt64,
     "Word64" ~:
-      testInfDimlessEncoding ["integral", "Word64"] integralEncodingInt64,
+      testInfDimlessEncoding ["integral", "Word64"] integralInt64,
     "Int8" ~:
       testInfDimlessEncodingWithLimit ["integral", "Int8"]
-                                       integralEncodingInt8 255,
+                                       integralInt8 255,
     "Word64" ~:
       testInfDimlessEncodingWithLimit ["integral", "Word8"]
-                                       integralEncodingWord8 255
+                                       integralWord8 255
   ]
 
 intervalTests = [
@@ -498,7 +498,7 @@ testFinEither tags iso leftvals rightvals =
 
 eitherTests =
   let
-    infiniteEncoding = integralEncodingInteger
+    infiniteEncoding = integralInteger
     bigvals = ["A", "B", "C", "D", "E", "F"]
     smallvals = ["G", "H", "I"]
     biggerEncoding = fromHashableList bigvals
@@ -532,7 +532,9 @@ eitherTests =
 testlist :: [Test]
 testlist = [
     "identity" ~: testInfDimlessEncoding ["Integer"] identity,
-    "integralEncoding" ~: integralEncodingTests,
+    "singleton" ~: testFiniteEncodingWithVals ["singleton"]
+                                              (singleton "A") ["A"],
+    "integral" ~: integralTests,
     "interval" ~: intervalTests,
     "fromHashableList" ~:
       testFiniteEncodingWithVals ["fromHashableList"]
