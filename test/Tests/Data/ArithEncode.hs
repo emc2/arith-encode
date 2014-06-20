@@ -573,6 +573,13 @@ testFinSet iso vals =
     numvals = length vals
     setvals = map Set.fromList (subsequences vals)
     isosize = toInteger (2 ^ numvals)
+
+    checkHighestIndex n =
+      let
+        filteredsetvals = filter ((==) n.  Set.size) setvals
+        m = maximum (map (encode iso) filteredsetvals)
+      in
+        highestIndex iso SetSize (toInteger n) @?= Just m
   in
     [ testNameTags "isomorphism" ["isomorphism", "set"]
                    (testEncodingVals iso setvals),
@@ -594,13 +601,10 @@ testFinSet iso vals =
       testNameTags "maxDepth_SetElem" ["maxDepth", "set", "SetElem"]
                    (maxDepth iso (SetElem ()) @?= Just 0),
       testNameTags "highestIndex_SetElem" ["highestIndex", "set", "SetElem"]
-                   (highestIndex iso (SetElem ()) 0 @?= Nothing),
-      testNameTags "highestIndex_SetSize_0" ["highestIndex", "set", "SetSize"]
-                   (highestIndex iso SetSize 0 @?= Just 0),
+                   (highestIndex iso (SetElem ()) 0 @?=
+                    Just (toInteger isosize)),
       testNameTags "highestIndex_SetSize_n" ["highestIndex", "set", "SetSize"]
-                   (mapM_ (\n -> highestIndex iso SetSize 1 @?=
-                                 Just ((2 ^ n) - 1))
-                          [0..numvals-1])
+                   (mapM_ checkHighestIndex [0..numvals])
     ]
 
 setTests = [

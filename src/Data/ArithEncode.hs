@@ -139,6 +139,7 @@ import Data.List hiding (elem)
 import Data.Maybe
 import Data.Set(Set)
 import Data.Typeable
+--import Debug.Trace
 import Prelude hiding (elem, either)
 
 import qualified Data.Array as Array
@@ -742,8 +743,9 @@ set Encoding { encEncode = encodefunc, encDecode = decodefunc,
           let
             newHighestIndex' SetSize 0 = Just 0
             newHighestIndex' SetSize n
-              | n < setsize =
-                Just ((2 ^ n) - 1 `shiftL` fromInteger (setsize - n))
+              | n <= setsize =
+                Just (((2 ^ n) - 1 :: Integer) `shiftL`
+                        fromInteger (setsize - n))
               | otherwise = throw (IllegalArgument "Set size is too big")
             newHighestIndex' (SetElem dim) n =
               do
