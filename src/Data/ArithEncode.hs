@@ -27,7 +27,7 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
-{-# OPTIONS_GHC -Wall -Werror #-}
+{-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
 -- | Defines a datatype representing an isomorphism between the
@@ -104,8 +104,8 @@ module Data.ArithEncode(
        optional,
        mandatory,
        nonzero,
-       exclude{-,
-       either,
+       exclude,
+       either{-,
        disjointUnion,
        product2,
        product3,
@@ -131,9 +131,10 @@ import Data.Hashable
 import Data.List hiding (elem)
 import Data.Maybe
 import Data.Typeable
-import Prelude hiding (elem)
+import Prelude hiding (elem, either)
 
 import qualified Data.Array as Array
+import qualified Data.Either as Either
 import qualified Data.HashMap as HashMap
 import qualified Data.Map as Map
 
@@ -576,6 +577,98 @@ exclude excludes enc @ Encoding { encEncode = encodefunc,
   in
     enc { encEncode = newEncode, encDecode = newDecode,
           encSize = newSize, encHighestIndex = newHighestIndex }
+
+-- | Combine two encodings into a single encoding that returns an
+-- @Either@ of the two types.
+either :: Encoding dim1 ty1
+       -- ^ The @Encoding@ that will be represented by @Left@.
+       -> Encoding dim2 ty2
+       -- ^ The @Encoding@ that will be represented by @Right@.
+       -> Encoding (Either dim1 dim2) (Either ty1 ty2)
+either Encoding { encEncode = encode1, encDecode = decode1,
+                  encMaxDepth = maxDepth1, encSize = sizeval1,
+                  encDepth = depth1, encHighestIndex = highindex1 }
+       Encoding { encEncode = encode2, encDecode = decode2,
+                  encMaxDepth = maxDepth2, encSize = sizeval2,
+                  encDepth = depth2, encHighestIndex = highindex2 } =
+  let
+    -- There are three cases here, depending on the size of the two
+    -- mappings.  This does replicate code, but it also does a lot of
+    -- figuring things when the encoding is created as opposed to
+    -- later.
+    (isLeft, leftIdxFwd, rightIdxFwd, leftIdxRev, rightIdxRev) =
+      case (sizeval1, sizeval2) of
+        -- Simplest case: both mappings are infinite.  Map all the
+        -- evens to the left, and all the odds to the right.
+        (Nothing, Nothing) ->
+          (\num -> not (testBit num 0),
+           \idx -> idx `shiftL` 1,
+           \idx -> setBit (idx `shiftL` 1) 0,
+           \idx -> idx `shiftR` 1,
+           \idx -> idx `shiftR` 1)
+        -- Left is smaller: do the even/odd mapping until we exhaust
+        -- the left, then just map directly to the right.
+        (Just size1, _) | maybe True (size1 <) sizeval2 ->
+          let
+            size1shifted = (size1 `shiftL` 1)
+            isLeft' num = num < size1shifted && not (testBit num 0)
+            leftIdxFwd' idx = idx `shiftL` 1
+
+            rightIdxFwd' idx
+              | size1 >= idx = size1shifted + (idx - size1)
+              | otherwise = setBit (idx `shiftL` 1) 0
+
+            leftIdxRev' idx = idx `shiftR` 1
+
+            rightIdxRev' idx
+              | idx >= size1shifted = size1 + (idx - size1shifted)
+              | otherwise = idx `shiftR` 1
+          in
+            (isLeft', leftIdxFwd', rightIdxFwd', leftIdxRev', rightIdxRev')
+        -- Right is smaller: do the even/odd mapping until we exhaust
+        -- the right, then just map directly to the left.
+        (_, Just size2) ->
+          let
+            size2shifted = (size2 `shiftL` 1)
+            isLeft' num = num > size2shifted || testBit num 0
+
+            leftIdxFwd' idx
+              | size2 >= idx = size2shifted + (idx - size2)
+              | otherwise = idx `shiftL` 1
+
+            rightIdxFwd' idx = setBit (idx `shiftL` 1) 0
+
+            leftIdxRev' idx
+              | idx >= size2shifted = size2 + (idx - size2shifted)
+              | otherwise = idx `shiftR` 1
+
+            rightIdxRev' idx = idx `shiftR` 1
+          in
+            (isLeft', leftIdxFwd', rightIdxFwd', leftIdxRev', rightIdxRev')
+        _ -> error "This case should never happen"
+
+    newSize =
+      do
+        size1 <- sizeval1
+        size2 <- sizeval2
+        return (size1 + size2)
+
+    eitherIndex lfunc rfunc idx
+      | isLeft idx = lfunc (leftIdxRev idx)
+      | otherwise = rfunc (rightIdxRev idx)
+
+    newEncode = Either.either (leftIdxFwd . encode1) (rightIdxFwd . encode2)
+    newDecode = eitherIndex (Left . decode1) (Right . decode2)
+    newMaxDepth = Either.either maxDepth1 maxDepth2
+    newHighestIndex = Either.either highindex1 highindex2
+
+    newDepth (Left dim) (Left val) = depth1 dim val
+    newDepth (Right dim) (Right val) = depth2 dim val
+    newDepth _ _ = 0
+  in
+    Encoding { encEncode = newEncode, encDecode = newDecode,
+               encSize = newSize, encMaxDepth = newMaxDepth,
+               encDepth = newDepth, encHighestIndex = newHighestIndex }
 {-
 -- | An alias for @product2@.
 pair = product2

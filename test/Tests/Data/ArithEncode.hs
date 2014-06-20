@@ -39,6 +39,7 @@ import Data.List
 import Data.Maybe
 import Data.Word
 import Data.Set(Set)
+import Prelude hiding (either)
 import Test.HUnitPlus.Base
 
 import qualified Data.Array as Array
@@ -410,8 +411,76 @@ excludeTests =
        ["linearDepthEncoding", "exclude"]
        (exclude [] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
        ["A", "B", "C", "D", "E"]) : map makeExcludeTest testdata
-  
-  
+
+testInfEither tags iso limit = [
+    testNameTags "isomorphism" ("isomorphism" : tags)
+                 (testIsomorphism iso limit),
+    testNameTags "bounds_low" ("bounds" : tags)
+                 (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                               (return $! decode iso (-1))),
+    testNameTags "size" ("size" : tags) (size iso @?= Nothing),
+    testNameTags "maxDepth" ("maxDepth" : tags)
+                 (maxDepth iso (Left ()) @?= Just 0),
+    testNameTags "maxDepth" ("maxDepth" : tags)
+                 (maxDepth iso (Right ()) @?= Just 0),
+    testNameTags "highestIndex" ("highestIndex" : tags)
+                 (highestIndex iso (Left ()) 0 @?= Nothing),
+    testNameTags "highestIndex" ("highestIndex" : tags)
+                 (highestIndex iso (Right ()) 0 @?= Nothing) ]
+
+testFinEither tags iso vals =
+  let
+    isosize = toInteger (length vals)
+  in
+    [ testNameTags "isomorphism" ("isomorphism" : tags)
+                   (testEncodingVals iso vals),
+      testNameTags "size" ("size" : tags)
+                   (size iso @?= Just isosize),
+      testNameTags "bounds_low" ("bounds" : tags)
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "bounds_high" ("bounds" : tags)
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (fromJust (size iso)))),
+      testNameTags "maxDepth_Left" ("maxDepth" : tags)
+                   (maxDepth iso (Left ()) @?= Just 0),
+      testNameTags "maxDepth_Right" ("maxDepth" : tags)
+                   (maxDepth iso (Right ()) @?= Just 0),
+      testNameTags "highestIndex_Left" ("highestIndex" : tags)
+                   (highestIndex iso (Left ()) 0 @?= Just isosize),
+      testNameTags "highestIndex_Right" ("highestIndex" : tags)
+                   (highestIndex iso (Right ()) 0 @?= Just isosize) ]
+
+eitherTests =
+  let
+    infiniteEncoding = integralEncodingInteger
+    bigvals = ["A", "B", "C", "D", "E", "F"]
+    smallvals = ["G", "H", "I"]
+    biggerEncoding = fromHashableList bigvals
+    smallerEncoding = fromHashableList smallvals
+    finiteEncoding = biggerEncoding
+  in
+    [ "infinite_infinite" ~:
+        testInfEither ["integral", "Integer", "either"]
+                      (either infiniteEncoding infiniteEncoding) 10000,
+      "infinite_finite" ~:
+         testInfEither ["integral", "Integer", "fromHashableList", "either"]
+                       (either infiniteEncoding finiteEncoding) 100,
+      "finite_infinite" ~:
+         testInfEither ["integral", "Integer", "fromHashableList", "either"]
+                       (either infiniteEncoding finiteEncoding) 100,
+      "finite_finite" ~:
+         testFinEither ["fromHashableList", "either"]
+                       (either finiteEncoding finiteEncoding)
+                       (map Left bigvals ++ map Right bigvals),
+      "big_small" ~:
+         testFinEither ["fromHashableList", "either"]
+                       (either biggerEncoding smallerEncoding)
+                       (map Left bigvals ++ map Right smallvals),
+      "small_big" ~:
+         testFinEither ["fromHashableList", "either"]
+                       (either smallerEncoding biggerEncoding)
+                       (map Left smallvals ++ map Right bigvals) ]
 
 testlist :: [Test]
 testlist = [
@@ -444,7 +513,8 @@ testlist = [
       testLinearDepthEncoding ["linearDepthEncoding"]
                               (linearDepthEncoding ["A", "B", "C", "D", "E"])
                               ["A", "B", "C", "D", "E"],
-    "exclude" ~: excludeTests
+    "exclude" ~: excludeTests,
+    "either" ~: eitherTests
   ]
 
 tests :: Test
