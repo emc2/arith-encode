@@ -531,7 +531,7 @@ eitherTests =
 
 testlist :: [Test]
 testlist = [
-    "identityEncoding" ~: testInfDimlessEncoding ["Integer"] identityEncoding,
+    "identity" ~: testInfDimlessEncoding ["Integer"] identity,
     "integralEncoding" ~: integralEncodingTests,
     "interval" ~: intervalTests,
     "fromHashableList" ~:

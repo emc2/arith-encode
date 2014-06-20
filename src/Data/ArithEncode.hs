@@ -93,7 +93,7 @@ module Data.ArithEncode(
        -- * Building Encodings
 
        -- ** Basic Encodings
-       identityEncoding,
+       identity,
 --       singleton,
        integralEncoding,
        interval,
@@ -295,8 +295,8 @@ highestIndex :: Encoding dim ty
 highestIndex encoding = encHighestIndex encoding
 
 -- | The identity encoding.
-identityEncoding :: Encoding () Integer
-identityEncoding = mkInfDimlessEncoding id id
+identity :: Encoding () Integer
+identity = mkInfDimlessEncoding id id
 
 -- | An encoding of /all/ integers into the positive integers.
 integralEncoding :: Integral n => Encoding () n
