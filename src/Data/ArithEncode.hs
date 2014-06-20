@@ -121,9 +121,14 @@ module Data.ArithEncode(
        pair,
        triple,
        quad,
-       quint,
-       set,
-       finiteMap,
+       quint,-}
+       SetDim(..),
+       set{-,
+       hashSet,
+       map,
+       hashMap,
+       func,
+       hashFunc,
        finiteSeq-}
        ) where
 
@@ -132,6 +137,7 @@ import Data.Bits
 import Data.Hashable
 import Data.List hiding (elem)
 import Data.Maybe
+import Data.Set(Set)
 import Data.Typeable
 import Prelude hiding (elem, either)
 
@@ -139,7 +145,7 @@ import qualified Data.Array as Array
 import qualified Data.Either as Either
 import qualified Data.HashMap as HashMap
 import qualified Data.Map as Map
---import qualified Data.Set as Set
+import qualified Data.Set as Set
 
 -- | An exception to be thrown if an illegal argument is given to
 -- 'encode', 'decode', 'depth', or 'highestIndex'.
@@ -327,19 +333,8 @@ interval lower upper
   | lower <= upper =
     let
       biglower = toInteger lower
-
-      encodefunc num
-        | num < lower =
-          throw (IllegalArgument ("value " ++ show num ++
-                                  " is less than lower bound " ++ show lower))
-        | num > upper =
-          throw (IllegalArgument ("value " ++ show num ++
-                                  " is greater or equal to upper bound " ++
-                                  show upper))
-        | otherwise = (toInteger num) - biglower
-
+      encodefunc num = (toInteger num) - biglower
       decodefunc num = fromInteger (num + biglower)
-
       sizeval = Just ((toInteger upper) - (toInteger lower) + 1)
     in
        mkDimlessEncoding encodefunc decodefunc sizeval
@@ -691,7 +686,7 @@ quad = product4
 
 -- | An alias for @product5@
 quint = product5
-
+-}
 -- | A datatype representing the dimensions of a set.
 data SetDim dim =
     -- | A dimension representing the size of the set.
@@ -704,34 +699,70 @@ data SetDim dim =
 -- | Build an encoding for /finite/ sets of values of a given datatype
 -- from an encoding for that datatype.
 set :: Ord ty => Encoding dim ty -> Encoding (SetDim dim) (Set ty)
-set Encoding { encEncode = encodefunc,
+set Encoding { encEncode = encodefunc, encDecode = decodefunc,
                encDepth = depthfunc, encMaxDepth = maxdepthfunc,
                encHighestIndex = highindexfunc, encSize = sizeval } =
   let
     newEncode = Set.foldl (\n -> setBit n . fromInteger . encodefunc) 0
 
-    newsize =
+    newDecode =
+      let
+        decode' out _ 0 = out
+        decode' out idx n
+          | testBit n 0 =
+            decode' (Set.insert (decodefunc idx) out) (idx + 1) (n `shiftR` 1)
+          | otherwise = decode' out (idx + 1) (n `shiftR` 1)
+      in
+        decode' Set.empty 0
+
+    newSize =
       do
         elems <- sizeval
         return (2 ^ elems)
 
-    newDepth SetSize s = Set.size s
-    newDepth (SetElem dim) s = maximum (map (maxdepthfunc dim) (Set.elems s))
+    newDepth SetSize = toInteger . Set.size
+    newDepth (SetElem dim) =
+      let
+        foldfun m elem =
+          let
+            n = depthfunc dim elem
+          in
+            (max n m)
+      in
+        Set.foldl foldfun 0
 
     newMaxDepth SetSize = sizeval
     newMaxDepth (SetElem dim) = maxdepthfunc dim
 
-    newHighestIndex SetSize n =
-      let
-        highidx end out bitidx
-          | bitidx == end = out
-          | otherwise = highidx end (setBit out bitidx) (bitidx - 1)
-    newHighestIndex (SetElem dim) n =
-      do
-        idx <- highindexfunc dim n
-        return (2 ^ n)
+    -- Pick the right implementation based on whether or not the
+    -- underlying encoding is infinite
+    newHighestIndex =
+      case sizeval of
+        Just setsize ->
+          let
+            newHighestIndex' SetSize 0 = Just 0
+            newHighestIndex' SetSize n
+              | n < setsize =
+                Just ((2 ^ n) - 1 `shiftL` fromInteger (setsize - n))
+              | otherwise = throw (IllegalArgument "Set size is too big")
+            newHighestIndex' (SetElem dim) n =
+              do
+                idx <- highindexfunc dim n
+                return (2 ^ idx)
+          in
+            newHighestIndex'
+        Nothing ->
+          -- For the infinite case, there is no highest index for a
+          -- set of a given size.
+          let
+            newHighestIndex' SetSize _ = Nothing
+            newHighestIndex' (SetElem dim) n =
+              do
+                idx <- highindexfunc dim n
+                return (2 ^ idx)
+          in
+            newHighestIndex'
   in
-    Encoding { encEncode = newencode,
+    Encoding { encEncode = newEncode, encDecode = newDecode,
                encDepth = newDepth, encMaxDepth = newMaxDepth,
                encHighestIndex = newHighestIndex, encSize = newSize }
--}
