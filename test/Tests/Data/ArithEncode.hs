@@ -44,7 +44,8 @@ import Test.HUnitPlus.Base
 
 import qualified Data.Array as Array
 import qualified Data.HashMap as HashMap
-import qualified Data.HashSet as Set
+import qualified Data.HashSet as HashSet
+import qualified Data.Set as Set
 
 linearDepthEncoding :: (Hashable ty, Ord ty) => [ty] -> Encoding () ty
 linearDepthEncoding elems =
@@ -71,11 +72,11 @@ testIsomorphism iso limit =
         num' = encode iso val
       in do
         num == num' @? "encode (decode " ++ show num ++ ") != " ++ show num'
-        not (Set.member val previous) @?
+        not (HashSet.member val previous) @?
           "decode " ++ show num ++ " produced duplicate value " ++ show val
-        return (Set.insert val previous)
+        return (HashSet.insert val previous)
   in
-    foldM_ foldfun Set.empty [0..limit]
+    foldM_ foldfun HashSet.empty [0..limit]
 
 testEncodingVals :: (Show ty, Eq ty) => Encoding dim ty -> [ty] -> IO ()
 testEncodingVals iso vals =
@@ -90,11 +91,11 @@ testEncodingVals iso vals =
         maybe True (> num) (size iso) @?
           "encode " ++ show val ++ " == " ++ show num ++ " is too high"
         val == val' @? "encode (decode " ++ show val ++ ") != " ++ show val'
-        not (Set.member num previous) @?
+        not (HashSet.member num previous) @?
           "decode " ++ show num ++ " produced duplicate value " ++ show val
-        return (Set.insert num previous)
+        return (HashSet.insert num previous)
   in
-    foldM_ foldfun Set.empty vals
+    foldM_ foldfun HashSet.empty vals
 
 testFiniteEncoding :: (Hashable ty, Ord ty, Show ty) =>
                       [String] -> Encoding dim ty -> IO ()
@@ -533,6 +534,81 @@ eitherTests =
                        (either smallerEncoding biggerEncoding)
                        (map Left smallvals) (map Right bigvals) ]
 
+instance Hashable a => Hashable (Set a) where
+  hashWithSalt s = Set.foldl hashWithSalt s
+
+testInfSet iso limit =
+  let
+    checkSetSizeDepth n =
+      let
+        s = decode iso n
+      in
+        fromInteger (depth iso SetSize s) @?= Set.size s
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "set"]
+                   (testIsomorphism iso limit),
+      testNameTags "bounds_low" ["bounds", "set"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "size" ["size", "set"] (size iso @?= Nothing),
+      testNameTags "depth_SetSize" ["depth", "set", "SetSize"]
+                   (mapM_ checkSetSizeDepth [0..limit]),
+      testNameTags "depth_SetElem" ["depth", "set", "SetElem"]
+                   (mapM_ (\n -> depth iso (SetElem ()) (decode iso n) @?= 0)
+                          [0..limit]),
+      testNameTags "maxDepth_SetSize" ["maxDepth", "set", "SetSize"]
+                   (maxDepth iso SetSize @?= Nothing),
+      testNameTags "maxDepth_SetElem" ["maxDepth", "set", "SetElem"]
+                   (maxDepth iso (SetElem ()) @?= Just 0),
+      testNameTags "highestIndex_SetElem" ["highestIndex", "set", "SetElem"]
+                   (highestIndex iso (SetElem ()) 0 @?= Nothing),
+      testNameTags "highestIndex_SetSize_0" ["highestIndex", "set", "SetSize"]
+                   (highestIndex iso SetSize 0 @?= Just 0),
+      testNameTags "highestIndex_SetSize_n" ["highestIndex", "set", "SetSize"]
+                   (highestIndex iso SetSize 1 @?= Nothing)
+    ]
+
+testFinSet iso vals =
+  let
+    numvals = length vals
+    setvals = map Set.fromList (subsequences vals)
+    isosize = toInteger (2 ^ numvals)
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "set"]
+                   (testEncodingVals iso setvals),
+      testNameTags "size" ["size", "set"]
+                   (size iso @?= Just isosize),
+      testNameTags "bounds_low" ["bounds", "set"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "bounds_high" ["bounds",  "set"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (fromJust (size iso)))),
+      testNameTags "depth_SetSize" ["depth", "set", "SetSize"]
+                   (mapM_ (\s -> fromInteger (depth iso SetSize s) @?=
+                                 Set.size s) setvals),
+      testNameTags "depth_SetElem" ["depth", "set", "SetElem"]
+                   (mapM_ (\val -> depth iso (SetElem ()) val @?= 0) setvals),
+      testNameTags "maxDepth_SetSize" ["maxDepth", "set", "SetSize"]
+                   (maxDepth iso SetSize @?= Just (toInteger numvals)),
+      testNameTags "maxDepth_SetElem" ["maxDepth", "set", "SetElem"]
+                   (maxDepth iso (SetElem ()) @?= Just 0),
+      testNameTags "highestIndex_SetElem" ["highestIndex", "set", "SetElem"]
+                   (highestIndex iso (SetElem ()) 0 @?= Nothing),
+      testNameTags "highestIndex_SetSize_0" ["highestIndex", "set", "SetSize"]
+                   (highestIndex iso SetSize 0 @?= Just 0),
+      testNameTags "highestIndex_SetSize_n" ["highestIndex", "set", "SetSize"]
+                   (mapM_ (\n -> highestIndex iso SetSize 1 @?=
+                                 Just ((2 ^ n) - 1))
+                          [0..numvals-1])
+    ]
+
+setTests = [
+    "infinite" ~: testInfSet (set integralInteger) 10000,
+    "finite" ~: testFinSet (set (fromHashableList ["A", "B", "C", "D", "E"]))
+                           ["A", "B", "C", "D", "E"]
+  ]
+
 testlist :: [Test]
 testlist = [
     "identity" ~: testInfDimlessEncoding ["Integer"] identity,
@@ -567,7 +643,8 @@ testlist = [
                               (linearDepthEncoding ["A", "B", "C", "D", "E"])
                               ["A", "B", "C", "D", "E"],
     "exclude" ~: excludeTests,
-    "either" ~: eitherTests
+    "either" ~: eitherTests,
+    "set" ~: setTests
   ]
 
 tests :: Test

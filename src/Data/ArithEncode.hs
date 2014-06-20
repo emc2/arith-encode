@@ -755,6 +755,7 @@ set Encoding { encEncode = encodefunc, encDecode = decodefunc,
           -- For the infinite case, there is no highest index for a
           -- set of a given size.
           let
+            newHighestIndex' SetSize 0 = Just 0
             newHighestIndex' SetSize _ = Nothing
             newHighestIndex' (SetElem dim) n =
               do
