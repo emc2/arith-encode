@@ -111,6 +111,8 @@ testInfDimlessEncodingWithLimit tags iso limit = [
                  (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                (return $! decode iso (-1))),
     testNameTags "size" ("size" : tags) (size iso @?= Nothing),
+    testNameTags "depth" ("depth" : tags)
+                 (mapM_ (\n -> depth iso () (decode iso n) @?= 0) [0..limit]),
     testNameTags "maxDepth" ("maxDepth" : tags) (maxDepth iso () @?= Just 0),
     testNameTags "highestIndex" ("highestIndex" : tags)
                  (highestIndex iso () 0 @?= Nothing)
@@ -132,6 +134,8 @@ testFiniteEncodingWithVals tags iso vals =
       testNameTags "bounds_high" ("bounds" : tags)
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (fromJust (size iso)))),
+      testNameTags "depth" ("depth" : tags)
+                   (mapM_ (\val -> depth iso () val @?= 0) vals),
       testNameTags "maxDepth" ("maxDepth" : tags) (maxDepth iso () @?= Just 0),
       testNameTags "highestIndex" ("highestIndex" : tags)
                    (highestIndex iso () 0 @?= Just isosize) ]
@@ -170,7 +174,7 @@ testLinearDepthEncoding tags iso vals =
                                  (return $! decode iso (fromJust (size iso)))),
       testNameTags "maxDepth" ("maxDepth" : tags)
                    (maxDepth iso () @?= Just (isosize - 1)),
-      testNameTags "testDepth" ("depth" : tags) (testDepth zipped),
+      testNameTags "depth" ("depth" : tags) (testDepth zipped),
       testNameTags "highestIndex" ("highestIndex" : tags)
                    (testHighestIndex (isosize - 1)) ]
 
@@ -217,7 +221,7 @@ testExclude tags iso vals excludes =
                                  (return $! decode iso (fromJust (size iso)))),
       testNameTags "maxDepth" ("maxDepth" : tags)
                    (maxDepth iso () @?= Just (toInteger ((length vals) - 1))),
-      testNameTags "testDepth" ("depth" : tags) (testDepth filtereddepths),
+      testNameTags "depth" ("depth" : tags) (testDepth filtereddepths),
       testNameTags "highestIndex" ("highestIndex" : tags)
                    (testHighestIndex (isosize - 1)) ]
 
