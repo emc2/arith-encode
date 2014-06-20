@@ -236,20 +236,20 @@ integralEncodingInt8 = integralEncoding
 integralEncodingWord8 :: Encoding () Int8
 integralEncodingWord8 = integralEncoding
 
-intervalEncodingInteger :: Integer -> Integer -> Encoding () Integer
-intervalEncodingInteger = intervalEncoding
+intervalInteger :: Integer -> Integer -> Encoding () Integer
+intervalInteger = interval
 
-intervalEncodingInt64 :: Int64 -> Int64 -> Encoding () Int64
-intervalEncodingInt64 = intervalEncoding
+intervalInt64 :: Int64 -> Int64 -> Encoding () Int64
+intervalInt64 = interval
 
-intervalEncodingInt8 :: Int8 -> Int8 -> Encoding () Int8
-intervalEncodingInt8 = intervalEncoding
+intervalInt8 :: Int8 -> Int8 -> Encoding () Int8
+intervalInt8 = interval
 
-intervalEncodingWord64 :: Word64 -> Word64 -> Encoding () Word64
-intervalEncodingWord64 = intervalEncoding
+intervalWord64 :: Word64 -> Word64 -> Encoding () Word64
+intervalWord64 = interval
 
-intervalEncodingWord8 :: Word8 -> Word8 -> Encoding () Word8
-intervalEncodingWord8 = intervalEncoding
+intervalWord8 :: Word8 -> Word8 -> Encoding () Word8
+intervalWord8 = interval
 
 optionalEncoding = optional (fromHashableList ["A", "B", "C", "D"])
 
@@ -268,83 +268,83 @@ integralEncodingTests = [
                                        integralEncodingWord8 255
   ]
 
-intervalEncodingTests = [
+intervalTests = [
     "Integer" ~: [
         "0_10000" ~:
           testFiniteEncodingWithVals ["interval", "Integer"]
-                                     (intervalEncodingInteger 0 10000)
+                                     (intervalInteger 0 10000)
                                      [0..10000],
         "2000_10000" ~:
           testFiniteEncodingWithVals ["interval", "Integer"]
-                                     (intervalEncodingInteger 2000 10000)
+                                     (intervalInteger 2000 10000)
                                      [2000..10000],
         "neg2000_2000" ~:
           testFiniteEncodingWithVals ["interval", "Integer"]
-                                     (intervalEncodingInteger (-2000) 2000)
+                                     (intervalInteger (-2000) 2000)
                                      [-2000..2000],
         "neg10000_neg2000" ~:
           testFiniteEncodingWithVals ["interval", "Integer"]
-                                     (intervalEncodingInteger (-10000) (-2000))
+                                     (intervalInteger (-10000) (-2000))
                                      [-10000..(-2000)]
       ],
     "Int64" ~: [
         "0_10000" ~:
           testFiniteEncodingWithVals ["interval", "Int64"]
-                                     (intervalEncodingInt64 0 10000) [0..10000],
+                                     (intervalInt64 0 10000) [0..10000],
         "2000_10000" ~:
           testFiniteEncodingWithVals ["interval", "Int64"]
-                                     (intervalEncodingInt64 2000 10000)
+                                     (intervalInt64 2000 10000)
                                      [2000..10000],
         "neg2000_2000" ~:
           testFiniteEncodingWithVals ["interval", "Int64"]
-                                     (intervalEncodingInt64 (-2000) 2000)
+                                     (intervalInt64 (-2000) 2000)
                                      [-2000..2000],
         "neg10000_neg2000" ~:
           testFiniteEncodingWithVals ["interval", "Int64"]
-                                     (intervalEncodingInt64 (-10000) (-2000))
+                                     (intervalInt64 (-10000) (-2000))
                                      [-10000..(-2000)]
       ],
     "Word64" ~: [
         "0_10000" ~:
           testFiniteEncodingWithVals ["interval", "Word64"]
-                                     (intervalEncodingWord64 0 10000) [0..10000],
+                                     (intervalWord64 0 10000) [0..10000],
         "2000_10000" ~:
           testFiniteEncodingWithVals ["interval", "Word64"]
-                                     (intervalEncodingWord64 2000 10000)
+                                     (intervalWord64 2000 10000)
                                      [2000..10000]
       ],
     "Int8" ~: [
         "0_100" ~:
           testFiniteEncodingWithVals ["interval", "Int8"]
-                                     (intervalEncodingInt8 0 100) [0..100],
+                                     (intervalInt8 0 100) [0..100],
         "20_100" ~:
           testFiniteEncodingWithVals ["interval", "Int8"]
-                                     (intervalEncodingInt8 20 100)
+                                     (intervalInt8 20 100)
                                      [20..100],
         "neg20_20" ~:
           testFiniteEncodingWithVals ["interval", "Int8"]
-                                     (intervalEncodingInt8 (-20) 20)
+                                     (intervalInt8 (-20) 20)
                                      [-20..20],
         "neg100_neg20" ~:
           testFiniteEncodingWithVals ["interval", "Int8"]
-                                     (intervalEncodingInt8 (-100) (-20))
+                                     (intervalInt8 (-100) (-20))
                                      [-100..(-20)],
         "neg128_127" ~:
           testFiniteEncodingWithVals ["interval", "Int8"]
-                                     (intervalEncodingInt8 (-128) 127)
+                                     (intervalInt8 (-128) 127)
                                      [-128..127]
       ],
     "Word8" ~: [
         "0_100" ~:
           testFiniteEncodingWithVals ["interval", "Word8"]
-                                     (intervalEncodingWord8 0 100) [0..100],
+                                     (intervalWord8 0 100) [0..100],
         "20_100" ~:
           testFiniteEncodingWithVals ["interval", "Word8"]
-                                     (intervalEncodingWord8 20 100)
+                                     (intervalWord8 20 100)
                                      [20..100],
         "0_255" ~:
           testFiniteEncodingWithVals ["interval", "Word8"]
-                                     (intervalEncodingWord8 0 255)
+                                     (intervalWord8 0 255)
                                      [0..255]
       ]
   ]
@@ -533,7 +533,7 @@ testlist :: [Test]
 testlist = [
     "identityEncoding" ~: testInfDimlessEncoding ["Integer"] identityEncoding,
     "integralEncoding" ~: integralEncodingTests,
-    "intervalEncoding" ~: intervalEncodingTests,
+    "interval" ~: intervalTests,
     "fromHashableList" ~:
       testFiniteEncodingWithVals ["fromHashableList"]
                                  (fromHashableList ["A", "B", "C", "D", "E"])

@@ -94,8 +94,9 @@ module Data.ArithEncode(
 
        -- ** Basic Encodings
        identityEncoding,
+--       singleton,
        integralEncoding,
-       intervalEncoding,
+       interval,
        fromHashableList,
        fromOrdList,
 
@@ -105,9 +106,10 @@ module Data.ArithEncode(
        mandatory,
        nonzero,
        exclude,
-       either{-,
+       either,
+       {-
        disjointUnion,
-       product2,
+       product,
        product3,
        product4,
        product5,
@@ -120,8 +122,8 @@ module Data.ArithEncode(
        triple,
        quad,
        quint,
-       finiteFunc,
-       finiteSet,
+       set,
+       finiteMap,
        finiteSeq-}
        ) where
 
@@ -137,6 +139,7 @@ import qualified Data.Array as Array
 import qualified Data.Either as Either
 import qualified Data.HashMap as HashMap
 import qualified Data.Map as Map
+--import qualified Data.Set as Set
 
 -- | An exception to be thrown if an illegal argument is given to
 -- 'encode', 'decode', 'depth', or 'highestIndex'.
@@ -310,13 +313,13 @@ integralEncoding =
     mkInfDimlessEncoding encodefunc decodefunc
 
 -- | Build an encoding from a finite range of 'Integral's.
-intervalEncoding :: (Show n, Integral n)
+interval :: (Show n, Integral n)
                  => n
                  -- ^ The (inclusive) lower bound on the range.
                  -> n
                  -- ^ The (exclusive) upper bound on the range.
                  -> Encoding () n
-intervalEncoding lower upper
+interval lower upper
   | lower <= upper =
     let
       biglower = toInteger lower
@@ -684,4 +687,47 @@ quad = product4
 
 -- | An alias for @product5@
 quint = product5
+
+-- | A datatype representing the dimensions of a set.
+data SetDim dim =
+    -- | A dimension representing the size of the set.
+    SetSize
+    -- | A dimension representing the dimensions of the elements.  The
+    -- depth of a set in a given element dimension is the maximum of
+    -- the depths of all its elements in that dimension.
+  | SetElem dim
+
+-- | Build an encoding for /finite/ sets of values of a given datatype
+-- from an encoding for that datatype.
+set :: Ord ty => Encoding dim ty -> Encoding (SetDim dim) (Set ty)
+set Encoding { encEncode = encodefunc,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+               encHighestIndex = highindexfunc, encSize = sizeval } =
+  let
+    newEncode = Set.foldl (\n -> setBit n . fromInteger . encodefunc) 0
+
+    newsize =
+      do
+        elems <- sizeval
+        return (2 ^ elems)
+
+    newDepth SetSize s = Set.size s
+    newDepth (SetElem dim) s = maximum (map (maxdepthfunc dim) (Set.elems s))
+
+    newMaxDepth SetSize = sizeval
+    newMaxDepth (SetElem dim) = maxdepthfunc dim
+
+    newHighestIndex SetSize n =
+      let
+        highidx end out bitidx
+          | bitidx == end = out
+          | otherwise = highidx end (setBit out bitidx) (bitidx - 1)
+    newHighestIndex (SetElem dim) n =
+      do
+        idx <- highindexfunc dim n
+        return (2 ^ n)
+  in
+    Encoding { encEncode = newencode,
+               encDepth = newDepth, encMaxDepth = newMaxDepth,
+               encHighestIndex = newHighestIndex, encSize = newSize }
 -}
