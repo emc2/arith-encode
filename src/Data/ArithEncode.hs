@@ -123,8 +123,11 @@ module Data.ArithEncode(
        quad,
        quint,-}
        SetDim(..),
-       set{-,
-       hashSet,
+       set,
+       hashSet{-,
+       seq-}
+       -- ** Derived Constructions
+       {-
        map,
        hashMap,
        func,
@@ -145,6 +148,7 @@ import Prelude hiding (elem, either)
 import qualified Data.Array as Array
 import qualified Data.Either as Either
 import qualified Data.HashMap as HashMap
+import qualified Data.HashSet as HashSet
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -731,6 +735,83 @@ set Encoding { encEncode = encodefunc, encDecode = decodefunc,
             (max n m)
       in
         Set.foldl foldfun 0
+
+    newMaxDepth SetSize = sizeval
+    newMaxDepth (SetElem dim) = maxdepthfunc dim
+
+    -- Pick the right implementation based on whether or not the
+    -- underlying encoding is infinite
+    newHighestIndex =
+      case sizeval of
+        Just setsize ->
+          let
+            newHighestIndex' SetSize 0 = Just 0
+            newHighestIndex' SetSize n
+              | n <= setsize =
+                Just (((2 ^ n) - 1 :: Integer) `shiftL`
+                        fromInteger (setsize - n))
+              | otherwise = throw (IllegalArgument "Set size is too big")
+            newHighestIndex' (SetElem dim) n =
+              do
+                idx <- highindexfunc dim n
+                return (2 ^ idx)
+          in
+            newHighestIndex'
+        Nothing ->
+          -- For the infinite case, there is no highest index for a
+          -- set of a given size.
+          let
+            newHighestIndex' SetSize 0 = Just 0
+            newHighestIndex' SetSize _ = Nothing
+            newHighestIndex' (SetElem dim) n =
+              do
+                idx <- highindexfunc dim n
+                return (2 ^ idx)
+          in
+            newHighestIndex'
+  in
+    Encoding { encEncode = newEncode, encDecode = newDecode,
+               encDepth = newDepth, encMaxDepth = newMaxDepth,
+               encHighestIndex = newHighestIndex, encSize = newSize }
+
+-- | Build an encoding for /finite/ sets of values of a given datatype
+-- from an encoding for that datatype.  Similar to @set@, but uses
+-- @HashSet@ instead
+hashSet :: (Hashable ty, Ord ty) =>
+           Encoding dim ty -> Encoding (SetDim dim) (HashSet.Set ty)
+hashSet Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                   encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+                   encHighestIndex = highindexfunc, encSize = sizeval } =
+  let
+    newEncode =
+      HashSet.fold (\elem n -> setBit n (fromInteger (encodefunc elem))) 0
+
+    newDecode =
+      let
+        decode' out _ 0 = out
+        decode' out idx n
+          | testBit n 0 =
+            decode' (HashSet.insert (decodefunc idx) out)
+                    (idx + 1) (n `shiftR` 1)
+          | otherwise = decode' out (idx + 1) (n `shiftR` 1)
+      in
+        decode' HashSet.empty 0
+
+    newSize =
+      do
+        elems <- sizeval
+        return (2 ^ elems)
+
+    newDepth SetSize = toInteger . HashSet.size
+    newDepth (SetElem dim) =
+      let
+        foldfun elem m =
+          let
+            n = depthfunc dim elem
+          in
+            (max n m)
+      in
+        HashSet.fold foldfun 0
 
     newMaxDepth SetSize = sizeval
     newMaxDepth (SetElem dim) = maxdepthfunc dim
