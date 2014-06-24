@@ -42,3 +42,4 @@ Library
   build-depends:        base >= 4.4.0 && < 5, Cabal >= 1.16.0, containers,
                         hashmap, array, hashable
   exposed-modules:      Data.ArithEncode
+                        Data.ArithEncode.Util
