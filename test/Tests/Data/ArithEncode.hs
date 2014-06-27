@@ -27,6 +27,7 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
+{-# LANGUAGE FlexibleInstances #-}
 
 module Tests.Data.ArithEncode(tests) where
 
@@ -537,6 +538,9 @@ eitherTests =
 instance Hashable a => Hashable (Set a) where
   hashWithSalt s = Set.foldl hashWithSalt s
 
+instance Hashable (HashSet.Set Integer) where
+  hashWithSalt s = foldl hashWithSalt s . sort . HashSet.toList
+
 testInfSet iso limit =
   let
     checkSetSizeDepth n =
@@ -607,10 +611,90 @@ testFinSet iso vals =
                    (mapM_ checkHighestIndex [0..numvals])
     ]
 
+testInfHashSet iso limit =
+  let
+    checkSetSizeDepth n =
+      let
+        s = decode iso n
+      in
+        fromInteger (depth iso SetSize s) @?= HashSet.size s
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "hashSet"]
+                   (testIsomorphism iso limit),
+      testNameTags "bounds_low" ["bounds", "hashSet"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "size" ["size", "hashSet"] (size iso @?= Nothing),
+      testNameTags "depth_SetSize" ["depth", "hashSet", "SetSize"]
+                   (mapM_ checkSetSizeDepth [0..limit]),
+      testNameTags "depth_SetElem" ["depth", "hashSet", "SetElem"]
+                   (mapM_ (\n -> depth iso (SetElem ()) (decode iso n) @?= 0)
+                          [0..limit]),
+      testNameTags "maxDepth_SetSize" ["maxDepth", "hashSet", "SetSize"]
+                   (maxDepth iso SetSize @?= Nothing),
+      testNameTags "maxDepth_SetElem" ["maxDepth", "hashSet", "SetElem"]
+                   (maxDepth iso (SetElem ()) @?= Just 0),
+      testNameTags "highestIndex_SetElem" ["highestIndex", "hashSet", "SetElem"]
+                   (highestIndex iso (SetElem ()) 0 @?= Nothing),
+      testNameTags "highestIndex_SetSize_0" ["highestIndex", "hashSet",
+                                             "SetSize"]
+                   (highestIndex iso SetSize 0 @?= Just 0),
+      testNameTags "highestIndex_SetSize_n" ["highestIndex", "hashSet",
+                                             "SetSize"]
+                   (highestIndex iso SetSize 1 @?= Nothing)
+    ]
+
+testFinHashSet iso vals =
+  let
+    numvals = length vals
+    setvals = map HashSet.fromList (subsequences vals)
+    isosize = toInteger (2 ^ numvals)
+
+    checkHighestIndex n =
+      let
+        filteredsetvals = filter ((==) n.  HashSet.size) setvals
+        m = maximum (map (encode iso) filteredsetvals)
+      in
+        highestIndex iso SetSize (toInteger n) @?= Just m
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "hashSet"]
+                   (testEncodingVals iso setvals),
+      testNameTags "size" ["size", "hashSet"]
+                   (size iso @?= Just isosize),
+      testNameTags "bounds_low" ["bounds", "hashSet"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "bounds_high" ["bounds",  "hashSet"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (fromJust (size iso)))),
+      testNameTags "depth_SetSize" ["depth", "hashSet", "SetSize"]
+                   (mapM_ (\s -> fromInteger (depth iso SetSize s) @?=
+                                 HashSet.size s) setvals),
+      testNameTags "depth_SetElem" ["depth", "hashSet", "SetElem"]
+                   (mapM_ (\val -> depth iso (SetElem ()) val @?= 0) setvals),
+      testNameTags "maxDepth_SetSize" ["maxDepth", "hashSet", "SetSize"]
+                   (maxDepth iso SetSize @?= Just (toInteger numvals)),
+      testNameTags "maxDepth_SetElem" ["maxDepth", "hashSet", "SetElem"]
+                   (maxDepth iso (SetElem ()) @?= Just 0),
+      testNameTags "highestIndex_SetElem" ["highestIndex", "hashSet", "SetElem"]
+                   (highestIndex iso (SetElem ()) 0 @?=
+                    Just (toInteger isosize)),
+      testNameTags "highestIndex_SetSize_n" ["highestIndex", "hashSet",
+                                             "SetSize"]
+                   (mapM_ checkHighestIndex [0..numvals])
+    ]
+
 setTests = [
     "infinite" ~: testInfSet (set integralInteger) 10000,
     "finite" ~: testFinSet (set (fromHashableList ["A", "B", "C", "D", "E"]))
                            ["A", "B", "C", "D", "E"]
+  ]
+
+hashSetTests = [
+    "infinite" ~: testInfHashSet (hashSet integralInteger) 10000,
+    "finite" ~:
+      testFinHashSet (hashSet (fromHashableList ["A", "B", "C", "D", "E"]))
+                     ["A", "B", "C", "D", "E"]
   ]
 
 testlist :: [Test]
@@ -648,7 +732,8 @@ testlist = [
                               ["A", "B", "C", "D", "E"],
     "exclude" ~: excludeTests,
     "either" ~: eitherTests,
-    "set" ~: setTests
+    "set" ~: setTests,
+    "hashSet" ~: hashSetTests
   ]
 
 tests :: Test
