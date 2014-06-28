@@ -28,7 +28,7 @@
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
 {-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable, ScopedTypeVariables #-}
 
 -- | Defines a datatype representing an isomorphism between the
 -- datatype ty (or some subset thereof) and the natural numbers
@@ -86,6 +86,7 @@ module Data.ArithEncode(
        encode,
        decode,
        size,
+       inDomain,
        maxDepth,
        depth,
        highestIndex,
@@ -108,16 +109,7 @@ module Data.ArithEncode(
        exclude,
        either,
        {-
-       disjointUnion,
-       product,
-       product3,
-       product4,
-       product5,
-       product6,
-       product7,
-       product8,
-       product9,
-       product10,
+       union,
        pair,
        triple,
        quad,
@@ -136,6 +128,7 @@ module Data.ArithEncode(
        ) where
 
 import Control.Exception
+import Data.Array.IArray(Array)
 import Data.Bits
 import Data.Hashable
 import Data.List hiding (elem)
@@ -145,7 +138,7 @@ import Data.Typeable
 --import Debug.Trace
 import Prelude hiding (elem, either)
 
-import qualified Data.Array as Array
+import qualified Data.Array.IArray as Array
 import qualified Data.Either as Either
 import qualified Data.HashMap as HashMap
 import qualified Data.HashSet as HashSet
@@ -172,6 +165,8 @@ data Encoding dim ty =
     encDecode :: Integer -> ty,
     -- | The size of an encoding, or 'Nothing' if it is infinite.
     encSize :: !(Maybe Integer),
+    -- | Indicate whether or not a value is in the domain of the encoding.
+    encInDomain :: ty -> Bool,
     -- | Get the maximum depth of a given dimension.
     encMaxDepth :: dim -> Maybe Integer,
     -- | Get the depth of a given @ty@ in a given dimension.
@@ -189,6 +184,9 @@ mkEncoding :: Enum dim
            -- ^ The decoding function.  Can assume all inputs are positive.
            -> Maybe Integer
            -- ^ The number of mappings, or 'Nothing' if it is infinite.
+           -> (ty -> Bool)
+           -- ^ A function indicating whether or not a given value is
+           -- in the domain of values.
            -> (dim -> Maybe Integer)
            -- ^ A function indicating the maximum depth of any dimension.
            -> (dim -> ty -> Integer)
@@ -197,10 +195,12 @@ mkEncoding :: Enum dim
            -- ^ A function indicating the last number mapping to a
            -- @ty@ less than a given depth in a given dimension.
            -> Encoding dim ty
-mkEncoding encodefunc decodefunc sizeval maxdepthfunc depthfunc highindexfunc =
+mkEncoding encodefunc decodefunc sizeval indomain
+           maxdepthfunc depthfunc highindexfunc =
   Encoding { encEncode = encodefunc, encDecode = decodefunc,
-             encSize = sizeval, encMaxDepth = maxdepthfunc,
-             encDepth = depthfunc, encHighestIndex = highindexfunc }
+             encSize = sizeval, encInDomain = indomain,
+             encMaxDepth = maxdepthfunc, encDepth = depthfunc,
+             encHighestIndex = highindexfunc }
 
 -- | Create an infinite-sized encoding.
 mkInfEncoding :: Enum dim
@@ -208,6 +208,9 @@ mkInfEncoding :: Enum dim
               -- ^ The encoding function.
               -> (Integer -> ty)
               -- ^ The decoding function.  Can assume all inputs are positive.
+              -> (ty -> Bool)
+              -- ^ A function indicating whether or not a given value is
+              -- in the domain of values.
               -> (dim -> Maybe Integer)
               -- ^ A function indicating the maximum depth of any dimension.
               -> (dim -> ty -> Integer)
@@ -216,8 +219,8 @@ mkInfEncoding :: Enum dim
               -- ^ A function indicating the last number mapping to a
               -- @ty@ less than a given depth in a given dimension.
               -> Encoding dim ty
-mkInfEncoding encodefunc decodefunc =
-  mkEncoding encodefunc decodefunc Nothing
+mkInfEncoding encodefunc decodefunc indomain =
+  mkEncoding encodefunc decodefunc Nothing indomain
 
 -- | Create a dimensionless (potentially finite) encoding.
 mkDimlessEncoding :: (ty -> Integer)
@@ -226,11 +229,14 @@ mkDimlessEncoding :: (ty -> Integer)
                   -- ^ The decoding function.  Can assume all inputs
                   -- are positive.
                   -> Maybe Integer
-                     -- ^ The number of mappings, or 'Nothing' if it is infinite.
+                  -- ^ The number of mappings, or 'Nothing' if it is infinite.
+                  -> (ty -> Bool)
+                  -- ^ A function indicating whether or not a given value is
+                  -- in the domain of values.
                   -> Encoding () ty
-mkDimlessEncoding encodefunc decodefunc sizeval =
-  mkEncoding encodefunc decodefunc sizeval (\() -> Just 0)
-             (\() _ -> 0) (\() _ -> sizeval)
+mkDimlessEncoding encodefunc decodefunc sizeval indomain =
+  mkEncoding encodefunc decodefunc sizeval indomain
+             (\() -> Just 0) (\() _ -> 0) (\() _ -> sizeval)
 
 -- | Create an infinite, dimensionless encoding.
 mkInfDimlessEncoding :: (ty -> Integer)
@@ -238,9 +244,12 @@ mkInfDimlessEncoding :: (ty -> Integer)
                      -> (Integer -> ty)
                      -- ^ The decoding function.  Can assume all
                      -- inputs are positive.
+                     -> (ty -> Bool)
+                     -- ^ A function indicating whether or not a given value is
+                     -- in the domain of values.
                      -> Encoding () ty
-mkInfDimlessEncoding encodefunc decodefunc =
-  mkDimlessEncoding encodefunc decodefunc Nothing
+mkInfDimlessEncoding encodefunc decodefunc indomain =
+  mkDimlessEncoding encodefunc decodefunc Nothing indomain
 
 -- | Encode a @ty@ as a positive 'Integer'.
 encode :: Encoding dim ty
@@ -272,6 +281,15 @@ size :: Encoding dim ty
      -> Maybe Integer
      -- ^ Number of values mapped, or 'Nothing' for infinity.
 size = encSize
+
+-- | Indicate whether or not a value is in the domain of the encoding.
+inDomain :: Encoding dim ty
+         -- ^ Encoding to use.
+         -> ty
+         -- ^ Value to query.
+         -> Bool
+         -- ^ Whether or not the value is in the domain of the encoding.
+inDomain encoding = encInDomain encoding
 
 -- | Get the maximum depth of a given dimension.
 maxDepth :: Encoding dim ty
@@ -307,11 +325,11 @@ highestIndex encoding = encHighestIndex encoding
 
 -- | The identity encoding.
 identity :: Encoding () Integer
-identity = mkInfDimlessEncoding id id
+identity = mkInfDimlessEncoding id id (\_ -> True)
 
 -- | A singleton encoding.  Maps a singular value to 0.
-singleton :: ty -> Encoding () ty
-singleton val = mkDimlessEncoding (\_ -> 0) (\_ -> val) (Just 1)
+singleton :: Eq ty => ty -> Encoding () ty
+singleton val = mkDimlessEncoding (\_ -> 0) (\_ -> val) (Just 1) (val ==)
 
 -- | An encoding of /all/ integers into the positive integers.
 integral :: Integral n => Encoding () n
@@ -325,15 +343,15 @@ integral =
       | num `testBit` 0 = fromInteger (-((num `shiftR` 1) + 1))
       | otherwise = fromInteger (num `shiftR` 1)
   in
-    mkInfDimlessEncoding encodefunc decodefunc
+    mkInfDimlessEncoding encodefunc decodefunc (\_ -> True)
 
 -- | Build an encoding from a finite range of 'Integral's.
 interval :: (Show n, Integral n)
-                 => n
-                 -- ^ The (inclusive) lower bound on the range.
-                 -> n
-                 -- ^ The (exclusive) upper bound on the range.
-                 -> Encoding () n
+         => n
+         -- ^ The (inclusive) lower bound on the range.
+         -> n
+         -- ^ The (exclusive) upper bound on the range.
+         -> Encoding () n
 interval lower upper
   | lower <= upper =
     let
@@ -341,12 +359,13 @@ interval lower upper
       encodefunc num = (toInteger num) - biglower
       decodefunc num = fromInteger (num + biglower)
       sizeval = Just ((toInteger upper) - (toInteger lower) + 1)
+      indomainfunc val = lower < val && val < upper
     in
-       mkDimlessEncoding encodefunc decodefunc sizeval
+       mkDimlessEncoding encodefunc decodefunc sizeval indomainfunc
   | otherwise = error "Lower bound is not less than upper bound"
 
 -- | Build an encoding from a list of 'Hashable' items.
-fromHashableList :: (Hashable ty, Ord ty)
+fromHashableList :: forall ty. (Hashable ty, Ord ty)
                  => [ty]
                  -- ^ A list of items to encode.
                  -> Encoding () ty
@@ -355,16 +374,20 @@ fromHashableList :: (Hashable ty, Ord ty)
 fromHashableList elems =
   let
     len = length elems
+
+    revmap :: Array Int ty
     revmap = Array.listArray (0, len) elems
+
     fwdmap = HashMap.fromList (zip elems [0..len])
     encodefunc = toInteger . (HashMap.!) fwdmap
     decodefunc = (Array.!) revmap . fromInteger
     sizeval = Just (toInteger len)
+    indomainfunc = (flip HashMap.member) fwdmap
   in
-    mkDimlessEncoding encodefunc decodefunc sizeval
+    mkDimlessEncoding encodefunc decodefunc sizeval indomainfunc
 
 -- | Build an encoding from a list of 'Hashable' items.
-fromOrdList :: Ord ty
+fromOrdList :: forall ty . Ord ty
             => [ty]
             -- ^ A list of items to encode.
             -> Encoding () ty
@@ -373,13 +396,17 @@ fromOrdList :: Ord ty
 fromOrdList elems =
   let
     len = length elems
+
+    revmap :: Array Int ty
     revmap = Array.listArray (0, len) elems
+
     fwdmap = Map.fromList (zip elems [0..len])
     encodefunc = toInteger . (Map.!) fwdmap
     decodefunc = (Array.!) revmap . fromInteger
     sizeval = Just (toInteger len)
+    indomainfunc = (flip Map.member) fwdmap
   in
-    mkDimlessEncoding encodefunc decodefunc sizeval
+    mkDimlessEncoding encodefunc decodefunc sizeval indomainfunc
 
 -- | Wrap an encoding using a pair of functions.  These functions must
 -- also define an isomorphism.
@@ -398,9 +425,11 @@ wrap :: (a -> b)
      -> Encoding dim a
 wrap fwd rev enc @ Encoding { encEncode = encodefunc,
                               encDecode = decodefunc,
+                              encInDomain = indomainfunc,
                               encDepth = depthfunc } =
   enc { encEncode = encodefunc . fwd,
         encDecode = rev . decodefunc,
+        encInDomain = indomainfunc . fwd,
         encDepth = (\dim -> depthfunc dim . fwd) }
 
 -- | Generate an encoding for @Maybe ty@ from an inner encoding for
@@ -409,11 +438,13 @@ wrap fwd rev enc @ Encoding { encEncode = encodefunc,
 -- from the inner encoding.
 optional :: Encoding dim ty -> Encoding dim (Maybe ty)
 optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
-                    encSize = sizeval, encMaxDepth = maxdepthfunc,
-                    encDepth = depthfunc, encHighestIndex = highestindexfunc } =
+                    encSize = sizeval, encInDomain = indomainfunc,
+                    encMaxDepth = maxdepthfunc, encDepth = depthfunc,
+                    encHighestIndex = highestindexfunc } =
   let
     newsize = sizeval >>= return . (+ 1)
     newmaxdepth dim = maxdepthfunc dim >>= return . (+ 1)
+    newindomain = maybe True indomainfunc
 
     newencode Nothing = 0
     newencode (Just val) = 1 + encodefunc val
@@ -428,8 +459,9 @@ optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
     newhighestindex dim val = highestindexfunc dim (val - 1)
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = newsize, encMaxDepth = newmaxdepth,
-               encDepth = newdepth, encHighestIndex = newhighestindex }
+               encSize = newsize, encInDomain = newindomain,
+               encMaxDepth = newmaxdepth, encDepth = newdepth,
+               encHighestIndex = newhighestindex }
 
 -- | The dual of @optional@.  This construction assumes that @Nothing@
 -- maps to @0@, and removes it from the input domain.  It also assumes
@@ -440,8 +472,9 @@ optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
 -- produced by @optional@ may have unexpected results.
 mandatory :: Encoding dim (Maybe ty) -> Encoding dim ty
 mandatory Encoding { encEncode = encodefunc, encDecode = decodefunc,
-                    encSize = sizeval, encMaxDepth = maxdepthfunc,
-                    encDepth = depthfunc, encHighestIndex = highestindexfunc } =
+                     encSize = sizeval, encInDomain = indomainfunc,
+                     encMaxDepth = maxdepthfunc, encDepth = depthfunc,
+                     encHighestIndex = highestindexfunc } =
   let
     dec n = n - 1
     newencode = dec . encodefunc . Just
@@ -450,10 +483,12 @@ mandatory Encoding { encEncode = encodefunc, encDecode = decodefunc,
     newmaxdepth dim = maxdepthfunc dim >>= return . dec
     newdepth dim = dec . depthfunc dim . Just
     newhighestindex dim = highestindexfunc dim . dec
+    newindomain = indomainfunc . Just
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = newsize, encMaxDepth = newmaxdepth,
-               encDepth = newdepth, encHighestIndex = newhighestindex }
+               encSize = newsize, encInDomain = newindomain,
+               encMaxDepth = newmaxdepth, encDepth = newdepth,
+               encHighestIndex = newhighestindex }
 
 -- | Removes the mapping to @0@ (ie. the first mapping).  This has the
 -- same effect as @exclude [x]@, where @x@ is the value that maps to
@@ -461,16 +496,19 @@ mandatory Encoding { encEncode = encodefunc, encDecode = decodefunc,
 -- change the base type.
 nonzero :: Encoding dim ty -> Encoding dim ty
 nonzero enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
-                         encSize = sizeval, encHighestIndex = highindexfunc } =
+                         encSize = sizeval, encInDomain = indomainfunc,
+                         encHighestIndex = highindexfunc } =
   let
     dec n = n - 1
     newencode = dec . encodefunc
     newdecode = decodefunc . (+ 1)
     newsize = sizeval >>= return . dec
     newhighestindex dim num = highindexfunc dim num >>= return . dec
+    newindomain val = indomainfunc val && 0 /= encodefunc val
   in
     enc { encEncode = newencode, encDecode = newdecode,
-          encSize = newsize, encHighestIndex = newhighestindex }
+          encSize = newsize, encInDomain = newindomain,
+          encHighestIndex = newhighestindex }
 
 -- | A simple binary tree structure, for use with exclude.
 data BinTree key val =
@@ -525,11 +563,11 @@ toBinTree vals =
 -- this should only be used with a very short excludes list.
 exclude :: [ty] -> Encoding dim ty -> Encoding dim ty
 exclude [] enc = enc
-exclude excludes enc @ Encoding { encEncode = encodefunc,
-                                  encDecode = decodefunc,
-                                  encHighestIndex = highindexfunc,
-                                  encSize = sizeval } =
+exclude excludes enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                                  encSize = sizeval, encInDomain = indomainfunc,
+                                  encHighestIndex = highindexfunc } =
   let
+    forbidden = HashSet.fromList (map encodefunc excludes)
     sortedlist = sort (map encodefunc excludes)
 
     fwdoffsets :: [(Integer, Integer)]
@@ -580,9 +618,13 @@ exclude excludes enc @ Encoding { encEncode = encodefunc,
       do
         n <- sizeval
         return $! (n - (toInteger (length excludes)))
+
+    newInDomain val =
+      indomainfunc val && not (HashSet.member (encodefunc val) forbidden)
   in
     enc { encEncode = newEncode, encDecode = newDecode,
-          encSize = newSize, encHighestIndex = newHighestIndex }
+          encSize = newSize, encInDomain = newInDomain,
+          encHighestIndex = newHighestIndex }
 
 -- | Combine two encodings into a single encoding that returns an
 -- @Either@ of the two types.
@@ -592,11 +634,13 @@ either :: Encoding dim1 ty1
        -- ^ The @Encoding@ that will be represented by @Right@.
        -> Encoding (Either dim1 dim2) (Either ty1 ty2)
 either Encoding { encEncode = encode1, encDecode = decode1,
-                  encMaxDepth = maxDepth1, encSize = sizeval1,
-                  encDepth = depth1, encHighestIndex = highindex1 }
+                  encInDomain = indomain1, encSize = sizeval1,
+                  encDepth = depth1, encHighestIndex = highindex1,
+                  encMaxDepth = maxDepth1 }
        Encoding { encEncode = encode2, encDecode = decode2,
-                  encMaxDepth = maxDepth2, encSize = sizeval2,
-                  encDepth = depth2, encHighestIndex = highindex2 } =
+                  encInDomain = indomain2, encSize = sizeval2,
+                  encDepth = depth2, encHighestIndex = highindex2,
+                  encMaxDepth = maxDepth2 } =
   let
     -- There are three cases here, depending on the size of the two
     -- mappings.  This does replicate code, but it also does a lot of
@@ -675,22 +719,71 @@ either Encoding { encEncode = encode1, encDecode = decode1,
     newDepth (Left dim) (Left val) = depth1 dim val
     newDepth (Right dim) (Right val) = depth2 dim val
     newDepth _ _ = 0
+
+    newInDomain = Either.either indomain1 indomain2
   in
     Encoding { encEncode = newEncode, encDecode = newDecode,
-               encSize = newSize, encMaxDepth = newMaxDepth,
-               encDepth = newDepth, encHighestIndex = newHighestIndex }
+               encSize = newSize, encInDomain = newInDomain,
+               encMaxDepth = newMaxDepth, encDepth = newDepth,
+               encHighestIndex = newHighestIndex }
 {-
+-- | Combine a set of encodings with the same dimension and result
+-- type into a single encoding which represents the disjoint union of
+-- the components.
+union :: [Encoding dim ty] -> Encoding dim ty
+union elems =
+  let
+    numelems = length elems
+
+    sortfunc Nothing Nothing = EQ
+    sortfunc Nothing _ = GT
+    sortfunc _ Nothing = LT
+    sortfunc (Just a) (Just b) = compare a b
+
+    (sizes, sortedelems) = unzip (sort (map (\enc -> (size enc, enc) elems)))
+    -- Turn the sorted element encodings into an array for fast access
+    elemarr = Array.listArray (0, numelems - 1) sortedelems
+
+    -- Turn the list of sizes into an an array indicating how far into
+    -- the array to skip.
+    sizeindextree =
+      let
+        foldfun (ind, accum) elemsize =
+          case elemsizes of
+            (_, elemsize') : rest | elemsize == elemsize' ->
+              (ind + 1, (elemsize, ind) : rest)
+            _ -> (ind + 1 (elemsize, ind) : accum)
+      in
+        toBinTree (reverse (map (\(n, i) -> (n * n, i))
+                           (foldl foldfun (0, []) sizes)))
+
+    encodefunc val =
+
+    -- Sum up all the sizes, going to infinity if one of them in
+    -- infinite
+    sizeval =
+      let
+        foldfun accum n =
+          do
+            accumval <- accum
+            nval <- n
+            return (n + accum)
+      in
+        foldM foldfun (Just 0) sizes
+  in
+    Encoding { encSize = sizeval, }
+
 -- | An alias for @product2@.
 pair = product2
 
 -- | An alias for @product3@.
-triple = product3
+triple a b c = pair (pair a b) c
 
 -- | An alias for @product4@.
-quad = product4
+quad a b c d = pair (pair a b) (pair c d)
 
 -- | An alias for @product5@
-quint = product5
+quint a b c d e = pair (pair a b) (triple c d e)
 -}
 -- | A datatype representing the dimensions of a set.
 data SetDim dim =
@@ -705,8 +798,9 @@ data SetDim dim =
 -- from an encoding for that datatype.
 set :: Ord ty => Encoding dim ty -> Encoding (SetDim dim) (Set ty)
 set Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc, encSize = sizeval } =
+               encDepth = depthfunc, encInDomain = indomainfunc,
+               encHighestIndex = highindexfunc, encSize = sizeval,
+               encMaxDepth = maxdepthfunc } =
   let
     newEncode = Set.foldl (\n -> setBit n . fromInteger . encodefunc) 0
 
@@ -769,10 +863,13 @@ set Encoding { encEncode = encodefunc, encDecode = decodefunc,
                 return (2 ^ idx)
           in
             newHighestIndex'
+
+    newInDomain = all indomainfunc . Set.toList
   in
     Encoding { encEncode = newEncode, encDecode = newDecode,
+               encSize = newSize, encInDomain = newInDomain,
                encDepth = newDepth, encMaxDepth = newMaxDepth,
-               encHighestIndex = newHighestIndex, encSize = newSize }
+               encHighestIndex = newHighestIndex }
 
 -- | Build an encoding for /finite/ sets of values of a given datatype
 -- from an encoding for that datatype.  Similar to @set@, but uses
@@ -780,8 +877,9 @@ set Encoding { encEncode = encodefunc, encDecode = decodefunc,
 hashSet :: (Hashable ty, Ord ty) =>
            Encoding dim ty -> Encoding (SetDim dim) (HashSet.Set ty)
 hashSet Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                   encSize = sizeval, encInDomain = indomainfunc,
                    encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-                   encHighestIndex = highindexfunc, encSize = sizeval } =
+                   encHighestIndex = highindexfunc } =
   let
     newEncode =
       HashSet.fold (\elem n -> setBit n (fromInteger (encodefunc elem))) 0
@@ -846,7 +944,10 @@ hashSet Encoding { encEncode = encodefunc, encDecode = decodefunc,
                 return (2 ^ idx)
           in
             newHighestIndex'
+
+    newInDomain = all indomainfunc . HashSet.toList
   in
     Encoding { encEncode = newEncode, encDecode = newDecode,
+               encSize = newSize, encInDomain = newInDomain,
                encDepth = newDepth, encMaxDepth = newMaxDepth,
-               encHighestIndex = newHighestIndex, encSize = newSize }
+               encHighestIndex = newHighestIndex }

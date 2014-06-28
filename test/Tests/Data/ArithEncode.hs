@@ -60,8 +60,10 @@ linearDepthEncoding elems =
     maxdepthfunc () = Just (toInteger (len - 1))
     depthfunc () = toInteger . (HashMap.!) fwdmap
     highindexfunc () = Just
+    indomainfunc = (flip HashMap.member) fwdmap
   in
-    mkEncoding encodefunc decodefunc sizeval maxdepthfunc depthfunc highindexfunc
+    mkEncoding encodefunc decodefunc sizeval indomainfunc
+               maxdepthfunc depthfunc highindexfunc
 
 testIsomorphism :: (Hashable ty, Ord ty, Show ty) =>
                    Encoding dim ty -> Integer -> IO ()
