@@ -236,7 +236,7 @@ mkDimlessEncoding :: (ty -> Integer)
                   -> Encoding () ty
 mkDimlessEncoding encodefunc decodefunc sizeval indomain =
   mkEncoding encodefunc decodefunc sizeval indomain
-             (\() -> Just 0) (\() _ -> 0) (\() _ -> sizeval)
+             (const (Just 0)) (const (const 0)) (const (const sizeval))
 
 -- | Create an infinite, dimensionless encoding.
 mkInfDimlessEncoding :: (ty -> Integer)
@@ -325,11 +325,11 @@ highestIndex encoding = encHighestIndex encoding
 
 -- | The identity encoding.
 identity :: Encoding () Integer
-identity = mkInfDimlessEncoding id id (\_ -> True)
+identity = mkInfDimlessEncoding id id (const True)
 
 -- | A singleton encoding.  Maps a singular value to 0.
 singleton :: Eq ty => ty -> Encoding () ty
-singleton val = mkDimlessEncoding (\_ -> 0) (\_ -> val) (Just 1) (val ==)
+singleton val = mkDimlessEncoding (const 0) (const val) (Just 1) (val ==)
 
 -- | An encoding of /all/ integers into the positive integers.
 integral :: Integral n => Encoding () n
@@ -343,7 +343,7 @@ integral =
       | num `testBit` 0 = fromInteger (-((num `shiftR` 1) + 1))
       | otherwise = fromInteger (num `shiftR` 1)
   in
-    mkInfDimlessEncoding encodefunc decodefunc (\_ -> True)
+    mkInfDimlessEncoding encodefunc decodefunc (const True)
 
 -- | Build an encoding from a finite range of 'Integral's.
 interval :: (Show n, Integral n)
