@@ -350,7 +350,7 @@ interval :: (Show n, Integral n)
          => n
          -- ^ The (inclusive) lower bound on the range.
          -> n
-         -- ^ The (exclusive) upper bound on the range.
+         -- ^ The (inclusive) upper bound on the range.
          -> Encoding () n
 interval lower upper
   | lower <= upper =
@@ -359,7 +359,7 @@ interval lower upper
       encodefunc num = (toInteger num) - biglower
       decodefunc num = fromInteger (num + biglower)
       sizeval = Just ((toInteger upper) - (toInteger lower) + 1)
-      indomainfunc val = lower < val && val < upper
+      indomainfunc val = lower <= val && val <= upper
     in
        mkDimlessEncoding encodefunc decodefunc sizeval indomainfunc
   | otherwise = error "Lower bound is not less than upper bound"
