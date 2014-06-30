@@ -418,44 +418,44 @@ optionalEncodingTests = [
 
 makeExcludeTest (vals, excludes) =
   let
-    name = concat excludes
+    name = excludes
   in
     name ~: testExclude ["linearDepthEncoding", "exclude"]
                         (exclude excludes (linearDepthEncoding vals))
-                        vals ["F", "G"] excludes
+                        vals ['F', 'G'] excludes
 
 excludeTests =
   let
     testdata = [
-        (["A", "B", "C", "D", "E"], ["A"]),
-        (["A", "B", "C", "D", "E"], ["B"]),
-        (["A", "B", "C", "D", "E"], ["E"]),
-        (["A", "B", "C", "D", "E"], ["A", "B"]),
-        (["A", "B", "C", "D", "E"], ["B", "A"]),
-        (["A", "B", "C", "D", "E"], ["A", "C"]),
-        (["A", "B", "C", "D", "E"], ["C", "A"]),
-        (["A", "B", "C", "D", "E"], ["B", "C"]),
-        (["A", "B", "C", "D", "E"], ["C", "B"]),
-        (["A", "B", "C", "D", "E"], ["A", "E"]),
-        (["A", "B", "C", "D", "E"], ["E", "A"]),
-        (["A", "B", "C", "D", "E"], ["B", "E"]),
-        (["A", "B", "C", "D", "E"], ["E", "B"]),
-        (["A", "B", "C", "D", "E"], ["A", "B", "C"]),
-        (["A", "B", "C", "D", "E"], ["A", "B", "D"]),
-        (["A", "B", "C", "D", "E"], ["A", "C", "E"]),
-        (["A", "B", "C", "D", "E"], ["B", "C", "D"]),
-        (["A", "B", "C", "D", "E"], ["B", "D", "E"]),
-        (["A", "B", "C", "D", "E"], ["C", "D", "E"]),
-        (["A", "B", "C", "D", "E"], ["A", "B", "C", "D"]),
-        (["A", "B", "C", "D", "E"], ["A", "B", "C", "E"]),
-        (["A", "B", "C", "D", "E"], ["B", "C", "D", "E"])
+        (['A', 'B', 'C', 'D', 'E'], ['A']),
+        (['A', 'B', 'C', 'D', 'E'], ['B']),
+        (['A', 'B', 'C', 'D', 'E'], ['E']),
+        (['A', 'B', 'C', 'D', 'E'], ['A', 'B']),
+        (['A', 'B', 'C', 'D', 'E'], ['B', 'A']),
+        (['A', 'B', 'C', 'D', 'E'], ['A', 'C']),
+        (['A', 'B', 'C', 'D', 'E'], ['C', 'A']),
+        (['A', 'B', 'C', 'D', 'E'], ['B', 'C']),
+        (['A', 'B', 'C', 'D', 'E'], ['C', 'B']),
+        (['A', 'B', 'C', 'D', 'E'], ['A', 'E']),
+        (['A', 'B', 'C', 'D', 'E'], ['E', 'A']),
+        (['A', 'B', 'C', 'D', 'E'], ['B', 'E']),
+        (['A', 'B', 'C', 'D', 'E'], ['E', 'B']),
+        (['A', 'B', 'C', 'D', 'E'], ['A', 'B', 'C']),
+        (['A', 'B', 'C', 'D', 'E'], ['A', 'B', 'D']),
+        (['A', 'B', 'C', 'D', 'E'], ['A', 'C', 'E']),
+        (['A', 'B', 'C', 'D', 'E'], ['B', 'C', 'D']),
+        (['A', 'B', 'C', 'D', 'E'], ['B', 'D', 'E']),
+        (['A', 'B', 'C', 'D', 'E'], ['C', 'D', 'E']),
+        (['A', 'B', 'C', 'D', 'E'], ['A', 'B', 'C', 'D']),
+        (['A', 'B', 'C', 'D', 'E'], ['A', 'B', 'C', 'E']),
+        (['A', 'B', 'C', 'D', 'E'], ['B', 'C', 'D', 'E'])
       ]
   in
     ("exclude_empty" ~:
      testLinearDepthEncoding
        ["linearDepthEncoding", "exclude"]
-       (exclude [] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
-       ["A", "B", "C", "D", "E"] ["F", "G"]) : map makeExcludeTest testdata
+       (exclude [] (linearDepthEncoding ['A', 'B', 'C', 'D', 'E']))
+       ['A', 'B', 'C', 'D', 'E'] ['F', 'G']) : map makeExcludeTest testdata
 
 testInfEither tags iso limit = [
     testNameTags "isomorphism" ("isomorphism" : tags)
