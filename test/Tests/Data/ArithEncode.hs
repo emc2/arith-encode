@@ -108,6 +108,15 @@ testFiniteEncoding tags iso =
   in
     testIsomorphism iso limit
 
+testInDomain :: Show ty => Encoding dim ty -> [ty] -> Test
+testInDomain enc vals =
+  test (mapM_ (\val -> inDomain enc val @? "inDomain " ++ show val) vals)
+
+testNotInDomain :: Show ty => Encoding dim ty -> [ty] -> Test
+testNotInDomain enc vals =
+  test (mapM_ (\val -> not (inDomain enc val) @? "not inDomain " ++ show val)
+        vals)
+
 testInfDimlessEncodingWithLimit tags iso limit = [
     testNameTags "isomorphism" ("isomorphism" : tags)
                  (testIsomorphism iso limit),
@@ -115,6 +124,8 @@ testInfDimlessEncodingWithLimit tags iso limit = [
                  (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                (return $! decode iso (-1))),
     testNameTags "size" ("size" : tags) (size iso @?= Nothing),
+    testNameTags "inDomain" ("inDomain" : tags)
+                 (testInDomain iso (map (decode iso) [0..limit])),
     testNameTags "depth" ("depth" : tags)
                  (mapM_ (\n -> depth iso () (decode iso n) @?= 0) [0..limit]),
     testNameTags "maxDepth" ("maxDepth" : tags) (maxDepth iso () @?= Just 0),
@@ -124,7 +135,7 @@ testInfDimlessEncodingWithLimit tags iso limit = [
 
 testInfDimlessEncoding tags iso = testInfDimlessEncodingWithLimit tags iso 10000
 
-testFiniteEncodingWithVals tags iso vals =
+testFiniteEncodingWithVals tags iso vals nonvals =
   let
     isosize = toInteger (length vals)
   in
@@ -138,13 +149,16 @@ testFiniteEncodingWithVals tags iso vals =
       testNameTags "bounds_high" ("bounds" : tags)
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (fromJust (size iso)))),
+      testNameTags "inDomain" ("inDomain" : tags) (testInDomain iso vals),
+      testNameTags "not_inDomain" ("inDomain" : tags)
+                   (testNotInDomain iso nonvals),
       testNameTags "depth" ("depth" : tags)
                    (mapM_ (\val -> depth iso () val @?= 0) vals),
       testNameTags "maxDepth" ("maxDepth" : tags) (maxDepth iso () @?= Just 0),
       testNameTags "highestIndex" ("highestIndex" : tags)
                    (highestIndex iso () 0 @?= Just isosize) ]
 
-testLinearDepthEncoding tags iso vals =
+testLinearDepthEncoding tags iso vals nonvals =
   let
     isosize = toInteger (length vals)
     zipped = zip [0..isosize] vals
@@ -176,18 +190,22 @@ testLinearDepthEncoding tags iso vals =
       testNameTags "bounds_high" ("bounds" : tags)
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (fromJust (size iso)))),
+      testNameTags "inDomain" ("inDomain" : tags) (testInDomain iso vals),
+      testNameTags "not_inDomain" ("inDomain" : tags)
+                   (testNotInDomain iso nonvals),
       testNameTags "maxDepth" ("maxDepth" : tags)
                    (maxDepth iso () @?= Just (isosize - 1)),
       testNameTags "depth" ("depth" : tags) (testDepth zipped),
       testNameTags "highestIndex" ("highestIndex" : tags)
                    (testHighestIndex (isosize - 1)) ]
 
-testExclude tags iso vals excludes =
+testExclude tags iso vals nonvals excludes =
   let
     isosize = toInteger (length vals - length excludes)
     filtered = filter ((flip notElem) excludes) vals
     zipped = zip [0..isosize] vals
     filtereddepths = filter ((flip notElem) excludes . snd) zipped
+    badvals = nonvals ++ excludes
 
     testDepth [] = return ()
     testDepth ((depthval, val) : rest) =
@@ -223,6 +241,9 @@ testExclude tags iso vals excludes =
       testNameTags "bounds_high" ("bounds" : tags)
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (fromJust (size iso)))),
+      testNameTags "inDomain" ("inDomain" : tags) (testInDomain iso filtered),
+      testNameTags "not_inDomain" ("inDomain" : tags)
+                   (testNotInDomain iso badvals),
       testNameTags "maxDepth" ("maxDepth" : tags)
                    (maxDepth iso () @?= Just (toInteger ((length vals) - 1))),
       testNameTags "depth" ("depth" : tags) (testDepth filtereddepths),
@@ -259,7 +280,7 @@ intervalWord64 = interval
 intervalWord8 :: Word8 -> Word8 -> Encoding () Word8
 intervalWord8 = interval
 
-optionalEncoding = optional (fromHashableList ["A", "B", "C", "D"])
+optionalEncoding = optional (fromHashableList ['A', 'B', 'C', 'D'])
 
 integralTests = [
     "Integer" ~:
@@ -281,91 +302,107 @@ intervalTests = [
         "0_10000" ~:
           testFiniteEncodingWithVals ["interval", "Integer"]
                                      (intervalInteger 0 10000)
-                                     [0..10000],
+                                     [0..10000] ([(-10000)..(-1)] ++
+                                                 [10001..20000]),
         "2000_10000" ~:
           testFiniteEncodingWithVals ["interval", "Integer"]
                                      (intervalInteger 2000 10000)
-                                     [2000..10000],
+                                     [2000..10000] ([0..1999] ++
+                                                    [10001..12000]),
         "neg2000_2000" ~:
           testFiniteEncodingWithVals ["interval", "Integer"]
                                      (intervalInteger (-2000) 2000)
-                                     [-2000..2000],
+                                     [-2000..2000] ([(-10000)..(-2001)] ++
+                                                     [2001..0]),
         "neg10000_neg2000" ~:
           testFiniteEncodingWithVals ["interval", "Integer"]
                                      (intervalInteger (-10000) (-2000))
-                                     [-10000..(-2000)]
+                                     [-10000..(-2000)] ([-12000..(-10001)] ++
+                                                        [-1999..0])
       ],
     "Int64" ~: [
         "0_10000" ~:
           testFiniteEncodingWithVals ["interval", "Int64"]
-                                     (intervalInt64 0 10000) [0..10000],
+                                     (intervalInt64 0 10000)
+                                     [0..10000] ([(-10000)..(-1)] ++
+                                                 [10001..20000]),
         "2000_10000" ~:
           testFiniteEncodingWithVals ["interval", "Int64"]
                                      (intervalInt64 2000 10000)
-                                     [2000..10000],
+                                     [2000..10000] ([0..1999] ++
+                                                    [10001..12000]),
         "neg2000_2000" ~:
           testFiniteEncodingWithVals ["interval", "Int64"]
                                      (intervalInt64 (-2000) 2000)
-                                     [-2000..2000],
+                                     [-2000..2000] ([(-10000)..(-2001)] ++
+                                                    [2001..0]),
         "neg10000_neg2000" ~:
           testFiniteEncodingWithVals ["interval", "Int64"]
                                      (intervalInt64 (-10000) (-2000))
-                                     [-10000..(-2000)]
+                                     [-10000..(-2000)] ([-12000..(-10001)] ++
+                                                        [-1999..0])
       ],
     "Word64" ~: [
         "0_10000" ~:
           testFiniteEncodingWithVals ["interval", "Word64"]
-                                     (intervalWord64 0 10000) [0..10000],
+                                     (intervalWord64 0 10000) [0..10000]
+                                     [10001..12000],
         "2000_10000" ~:
           testFiniteEncodingWithVals ["interval", "Word64"]
                                      (intervalWord64 2000 10000)
-                                     [2000..10000]
+                                     [2000..10000] ([0..1999] ++ [10001..12000])
       ],
     "Int8" ~: [
         "0_100" ~:
           testFiniteEncodingWithVals ["interval", "Int8"]
-                                     (intervalInt8 0 100) [0..100],
+                                     (intervalInt8 0 100) [0..100]
+                                     ([-100..(-1)] ++ [101..120]),
         "20_100" ~:
           testFiniteEncodingWithVals ["interval", "Int8"]
                                      (intervalInt8 20 100)
-                                     [20..100],
+                                     [20..100] ([0..19] ++ [101..120]),
         "neg20_20" ~:
           testFiniteEncodingWithVals ["interval", "Int8"]
                                      (intervalInt8 (-20) 20)
-                                     [-20..20],
+                                     [-20..20] ([-100..(-21)] ++ [21..100]),
         "neg100_neg20" ~:
           testFiniteEncodingWithVals ["interval", "Int8"]
                                      (intervalInt8 (-100) (-20))
-                                     [-100..(-20)],
-        "neg128_127" ~:
+                                     [-100..(-20)] ([-120..(-101)] ++ [-19..0]),
+        "neg128_128" ~:
           testFiniteEncodingWithVals ["interval", "Int8"]
                                      (intervalInt8 (-128) 127)
-                                     [-128..127]
+                                     [-128..127] []
       ],
     "Word8" ~: [
         "0_100" ~:
           testFiniteEncodingWithVals ["interval", "Word8"]
-                                     (intervalWord8 0 100) [0..100],
+                                     (intervalWord8 0 100) [0..100] [101..120],
         "20_100" ~:
           testFiniteEncodingWithVals ["interval", "Word8"]
                                      (intervalWord8 20 100)
-                                     [20..100],
+                                     [20..100] ([0..19] ++ [101..120]),
         "0_255" ~:
           testFiniteEncodingWithVals ["interval", "Word8"]
                                      (intervalWord8 0 255)
-                                     [0..255]
+                                     [0..255] []
       ]
   ]
 
 optionalEncodingTests = [
     testNameTags "isomorphism" ["isomorphism", "optional", "fromHashableList"]
                  (testEncodingVals optionalEncoding
-                                   [Nothing, Just "A", Just "B",
-                                    Just "C", Just "D"]),
+                                   [Nothing, Just 'A', Just 'B',
+                                    Just 'C', Just 'D']),
     testNameTags "decode_zero" ["isomorphism", "optional"]
                  (decode optionalEncoding 0 @?= Nothing),
     testNameTags "size" ["size", "optional"]
                  (size optionalEncoding @?= Just 5),
+    testNameTags "inDomain" ["inDomain", "optional"]
+                 (testInDomain optionalEncoding [Nothing, Just 'A', Just 'B',
+                                                 Just 'C', Just 'D']),
+    testNameTags "not_inDomain" ["inDomain", "optional"]
+                  (testNotInDomain optionalEncoding [Just 'E', Just 'F']),
     testNameTags "bounds_low" ["bounds", "optional"]
                  (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                (return $! decode optionalEncoding (-1))),
@@ -385,7 +422,7 @@ makeExcludeTest (vals, excludes) =
   in
     name ~: testExclude ["linearDepthEncoding", "exclude"]
                         (exclude excludes (linearDepthEncoding vals))
-                        vals excludes
+                        vals ["F", "G"] excludes
 
 excludeTests =
   let
@@ -418,7 +455,7 @@ excludeTests =
      testLinearDepthEncoding
        ["linearDepthEncoding", "exclude"]
        (exclude [] (linearDepthEncoding ["A", "B", "C", "D", "E"]))
-       ["A", "B", "C", "D", "E"]) : map makeExcludeTest testdata
+       ["A", "B", "C", "D", "E"] ["F", "G"]) : map makeExcludeTest testdata
 
 testInfEither tags iso limit = [
     testNameTags "isomorphism" ("isomorphism" : tags)
@@ -427,6 +464,8 @@ testInfEither tags iso limit = [
                  (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                (return $! decode iso (-1))),
     testNameTags "size" ("size" : tags) (size iso @?= Nothing),
+    testNameTags "inDomain" ("inDomain" : tags)
+                 (testInDomain iso (map (decode iso) [0..limit])),
     testNameTags "maxDepth" ("maxDepth" : tags)
                  (maxDepth iso (Left ()) @?= Just 0),
     testNameTags "maxDepth" ("maxDepth" : tags)
@@ -436,9 +475,12 @@ testInfEither tags iso limit = [
     testNameTags "highestIndex" ("highestIndex" : tags)
                  (highestIndex iso (Right ()) 0 @?= Nothing) ]
 
-testInfFinEither tags iso vals limit =
+testInfFinEither tags iso finvals limit nonvals =
   let
-    lastFinite = maximum (map (encode iso) vals)
+    leftvals = map Left [0..limit]
+    rightvals = map Right finvals
+    vals = leftvals ++ rightvals
+    lastFinite = maximum (map (encode iso) rightvals)
   in
     [ testNameTags "isomorphism" ("isomorphism" : tags)
                    (testIsomorphism iso limit),
@@ -447,6 +489,9 @@ testInfFinEither tags iso vals limit =
       testNameTags "bounds_low" ("bounds" : tags)
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (-1))),
+      testNameTags "inDomain" ("inDomain" : tags) (testInDomain iso vals),
+      testNameTags "not_inDomain" ["inDomain", "hashSet"]
+                   (testNotInDomain iso nonvals),
       testNameTags "size" ("size" : tags) (size iso @?= Nothing),
       testNameTags "maxDepth" ("maxDepth" : tags)
                    (maxDepth iso (Left ()) @?= Just 0),
@@ -457,17 +502,23 @@ testInfFinEither tags iso vals limit =
       testNameTags "highestIndex" ("highestIndex" : tags)
                    (highestIndex iso (Right ()) 0 @?= Just lastFinite) ]
 
-testFinInfEither tags iso vals limit =
+testFinInfEither tags iso finvals limit nonvals =
   let
-    lastFinite = maximum (map (encode iso) vals)
+    leftvals = map Left finvals
+    rightvals = map Right [0..limit]
+    vals = leftvals ++ rightvals
+    lastFinite = maximum (map (encode iso) leftvals)
   in
     [ testNameTags "isomorphism" ("isomorphism" : tags)
                    (testIsomorphism iso limit),
       testNameTags "isomorphism_vals" ("isomorphism" : tags)
-                   (testEncodingVals iso vals),
+                   (testEncodingVals iso leftvals),
       testNameTags "bounds_low" ("bounds" : tags)
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (-1))),
+      testNameTags "inDomain" ("inDomain" : tags) (testInDomain iso vals),
+      testNameTags "not_inDomain" ["inDomain", "hashSet"]
+                   (testNotInDomain iso nonvals),
       testNameTags "size" ("size" : tags) (size iso @?= Nothing),
       testNameTags "maxDepth" ("maxDepth" : tags)
                    (maxDepth iso (Left ()) @?= Just 0),
@@ -478,17 +529,20 @@ testFinInfEither tags iso vals limit =
       testNameTags "highestIndex" ("highestIndex" : tags)
                    (highestIndex iso (Right ()) 0 @?= Nothing) ]
 
-testFinEither tags iso leftvals rightvals =
+testFinEither tags iso leftvals rightvals nonvals =
   let
-    vals = leftvals ++ rightvals
+    vals = map Left leftvals ++ map Right rightvals
     isosize = toInteger (length vals)
-    lastleft = maximum (map (encode iso) leftvals)
-    lastright = maximum (map (encode iso) rightvals)
+    lastleft = maximum (map (encode iso . Left) leftvals)
+    lastright = maximum (map (encode iso. Right) rightvals)
   in
     [ testNameTags "isomorphism" ("isomorphism" : tags)
                    (testEncodingVals iso vals),
       testNameTags "size" ("size" : tags)
                    (size iso @?= Just isosize),
+      testNameTags "inDomain" ("inDomain" : tags) (testInDomain iso vals),
+      testNameTags "not_inDomain" ["inDomain", "hashSet"]
+                   (testNotInDomain iso nonvals),
       testNameTags "bounds_low" ("bounds" : tags)
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (-1))),
@@ -507,8 +561,9 @@ testFinEither tags iso leftvals rightvals =
 eitherTests =
   let
     infiniteEncoding = integralInteger
-    bigvals = ["A", "B", "C", "D", "E", "F"]
-    smallvals = ["G", "H", "I"]
+    bigvals = ['A', 'B', 'C', 'D', 'E', 'F']
+    smallvals = ['G', 'H', 'I']
+    nonvals = ['J', 'K', 'L']
     biggerEncoding = fromHashableList bigvals
     smallerEncoding = fromHashableList smallvals
     finiteEncoding = biggerEncoding
@@ -519,23 +574,30 @@ eitherTests =
       "infinite_finite" ~:
          testInfFinEither ["integral", "Integer", "fromHashableList", "either"]
                           (either infiniteEncoding finiteEncoding)
-                          (map Right bigvals) 100,
+                          bigvals 100 (map Right nonvals),
       "finite_infinite" ~:
          testFinInfEither ["integral", "Integer", "fromHashableList", "either"]
                           (either finiteEncoding infiniteEncoding)
-                          (map Left bigvals) 100,
+                          bigvals 100 (map Left nonvals),
       "finite_finite" ~:
          testFinEither ["fromHashableList", "either"]
                        (either finiteEncoding finiteEncoding)
-                       (map Left bigvals) (map Right bigvals),
+                       bigvals bigvals (map Left nonvals ++ map Right nonvals),
       "big_small" ~:
          testFinEither ["fromHashableList", "either"]
                        (either biggerEncoding smallerEncoding)
-                       (map Left bigvals) (map Right smallvals),
+                       bigvals smallvals (map Right bigvals ++
+                                          map Left smallvals ++
+                                          map Left nonvals ++
+                                          map Right nonvals),
       "small_big" ~:
          testFinEither ["fromHashableList", "either"]
                        (either smallerEncoding biggerEncoding)
-                       (map Left smallvals) (map Right bigvals) ]
+                       smallvals bigvals (map Right smallvals ++
+                                          map Left bigvals ++
+                                          map Left nonvals ++
+                                          map Right nonvals)
+    ]
 
 instance Hashable a => Hashable (Set a) where
   hashWithSalt s = Set.foldl hashWithSalt s
@@ -574,10 +636,11 @@ testInfSet iso limit =
                    (highestIndex iso SetSize 1 @?= Nothing)
     ]
 
-testFinSet iso vals =
+testFinSet iso vals nonval =
   let
     numvals = length vals
     setvals = map Set.fromList (subsequences vals)
+    nonvals = map (Set.insert nonval) setvals
     isosize = toInteger (2 ^ numvals)
 
     checkHighestIndex n =
@@ -597,6 +660,9 @@ testFinSet iso vals =
       testNameTags "bounds_high" ["bounds",  "set"]
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (fromJust (size iso)))),
+      testNameTags "inDomain" ["inDomain", "set"] (testInDomain iso setvals),
+      testNameTags "not_inDomain" ["inDomain", "hashSet"]
+                   (testNotInDomain iso nonvals),
       testNameTags "depth_SetSize" ["depth", "set", "SetSize"]
                    (mapM_ (\s -> fromInteger (depth iso SetSize s) @?=
                                  Set.size s) setvals),
@@ -646,10 +712,11 @@ testInfHashSet iso limit =
                    (highestIndex iso SetSize 1 @?= Nothing)
     ]
 
-testFinHashSet iso vals =
+testFinHashSet iso vals nonval =
   let
     numvals = length vals
     setvals = map HashSet.fromList (subsequences vals)
+    nonvals = map (HashSet.insert nonval) setvals
     isosize = toInteger (2 ^ numvals)
 
     checkHighestIndex n =
@@ -669,6 +736,9 @@ testFinHashSet iso vals =
       testNameTags "bounds_high" ["bounds",  "hashSet"]
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (fromJust (size iso)))),
+      testNameTags "inDomain" ["inDomain", "hashSet"] (testInDomain iso setvals),
+      testNameTags "not_inDomain" ["inDomain", "hashSet"]
+                   (testNotInDomain iso nonvals),
       testNameTags "depth_SetSize" ["depth", "hashSet", "SetSize"]
                    (mapM_ (\s -> fromInteger (depth iso SetSize s) @?=
                                  HashSet.size s) setvals),
@@ -688,50 +758,50 @@ testFinHashSet iso vals =
 
 setTests = [
     "infinite" ~: testInfSet (set integralInteger) 10000,
-    "finite" ~: testFinSet (set (fromHashableList ["A", "B", "C", "D", "E"]))
-                           ["A", "B", "C", "D", "E"]
+    "finite" ~: testFinSet (set (fromHashableList ['A', 'B', 'C', 'D', 'E']))
+                           ['A', 'B', 'C', 'D', 'E'] 'F'
   ]
 
 hashSetTests = [
     "infinite" ~: testInfHashSet (hashSet integralInteger) 10000,
     "finite" ~:
-      testFinHashSet (hashSet (fromHashableList ["A", "B", "C", "D", "E"]))
-                     ["A", "B", "C", "D", "E"]
+      testFinHashSet (hashSet (fromHashableList ['A', 'B', 'C', 'D', 'E']))
+                     ['A', 'B', 'C', 'D', 'E'] 'F'
   ]
 
 testlist :: [Test]
 testlist = [
     "identity" ~: testInfDimlessEncoding ["Integer"] identity,
     "singleton" ~: testFiniteEncodingWithVals ["singleton"]
-                                              (singleton "A") ["A"],
+                                              (singleton 'A') ['A'] ['B'],
     "integral" ~: integralTests,
     "interval" ~: intervalTests,
     "fromHashableList" ~:
       testFiniteEncodingWithVals ["fromHashableList"]
-                                 (fromHashableList ["A", "B", "C", "D", "E"])
-                                 ["A", "B", "C", "D", "E"],
+                                 (fromHashableList ['A', 'B', 'C', 'D', 'E'])
+                                 ['A', 'B', 'C', 'D', 'E'] ['F', 'G'],
     "fromOrdList" ~:
       testFiniteEncodingWithVals ["fromOrdList"]
-                                 (fromOrdList ["A", "B", "C", "D", "E"])
-                                 ["A", "B", "C", "D", "E"],
+                                 (fromOrdList ['A', 'B', 'C', 'D', 'E'])
+                                 ['A', 'B', 'C', 'D', 'E'] ['F', 'G'],
     "wrap" ~:
       testFiniteEncodingWithVals ["wrap", "fromOrdList"]
-                                 (wrap (map toUpper) (map toLower)
-                                       (fromOrdList ["A", "B", "C", "D", "E"]))
-                                 ["a", "b", "c", "d", "e"],
+                                 (wrap toUpper toLower
+                                       (fromOrdList ['A', 'B', 'C', 'D', 'E']))
+                                 ['a', 'b', 'c', 'd', 'e'] ['f', 'g'],
     "optional" ~: optionalEncodingTests,
     "mandatory" ~:
       testFiniteEncodingWithVals ["mandatory"] (mandatory optionalEncoding)
-                                 ["A", "B", "C", "D"],
+                                 ['A', 'B', 'C', 'D'] ['E', 'F'],
     "nonzero" ~:
       testFiniteEncodingWithVals ["nonzero", "fromHashableList"]
-                                 (nonzero (fromHashableList ["A", "B", "C",
-                                                             "D", "E", "F"]))
-                                 ["B", "C", "D", "E", "F"],
+                                 (nonzero (fromHashableList ['A', 'B', 'C',
+                                                             'D', 'E', 'F']))
+                                 ['B', 'C', 'D', 'E', 'F'] ['A', 'G'],
     "linearDepthEncoding" ~:
       testLinearDepthEncoding ["linearDepthEncoding"]
-                              (linearDepthEncoding ["A", "B", "C", "D", "E"])
-                              ["A", "B", "C", "D", "E"],
+                              (linearDepthEncoding ['A', 'B', 'C', 'D', 'E'])
+                              ['A', 'B', 'C', 'D', 'E'] ['F', 'G'],
     "exclude" ~: excludeTests,
     "either" ~: eitherTests,
     "set" ~: setTests,
