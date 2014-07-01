@@ -108,8 +108,8 @@ module Data.ArithEncode(
        nonzero,
        exclude,
        either,
-       {-
        union,
+{-
        pair,
        triple,
        quad,
@@ -128,10 +128,11 @@ module Data.ArithEncode(
        ) where
 
 import Control.Exception
+import Control.Monad
 import Data.Array.IArray(Array)
 import Data.Bits
 import Data.Hashable
-import Data.List hiding (elem)
+import Data.List hiding (elem, union)
 import Data.Maybe
 import Data.Set(Set)
 import Data.Typeable
@@ -515,27 +516,28 @@ data BinTree key val =
     Branch key val (BinTree key val) (BinTree key val)
   | Nil
 
--- | Simple binary tree lookup, for use with exclude.
-closestBelow :: Ord key => key -> BinTree key val -> Maybe val
+-- | Find the tree node with the highest index less than the given key
+-- and return its data.
+closestBelow :: Ord key => key -> BinTree key val -> Maybe (key, val)
 closestBelow target =
   let
     closestBelow' out Nil = out
     closestBelow' out (Branch k v left right) =
       case compare k target of
-        LT -> closestBelow' (Just v) right
+        LT -> closestBelow' (Just (k, v)) right
         _ -> closestBelow' out left
   in
     closestBelow' Nothing
 
 -- | Simple binary tree lookup, for use with exclude.
-closestWithin :: Ord key => key -> BinTree key val -> Maybe val
+closestWithin :: Ord key => key -> BinTree key val -> Maybe (key, val)
 closestWithin target =
   let
     closestWithin' out Nil = out
     closestWithin' out (Branch k v left right) =
       case compare k target of
         GT -> closestWithin' out left
-        _ -> closestWithin' (Just v) right
+        _ -> closestWithin' (Just (k, v)) right
   in
     closestWithin' Nothing
 
@@ -594,12 +596,12 @@ exclude excludes enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc
 
     toExcluded n =
       case closestBelow n fwdtree of
-        Just offset -> n - offset
+        Just (_, offset) -> n - offset
         Nothing -> n
 
     fromExcluded n =
       case closestWithin n revtree of
-        Just offset -> n + offset
+        Just (_, offset) -> n + offset
         Nothing -> n
 
     newEncode = toExcluded . encodefunc
@@ -609,7 +611,7 @@ exclude excludes enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc
       do
         maxdepth <- highindexfunc dim depthval
         case closestWithin maxdepth fwdtree of
-          Just offset
+          Just (_, offset)
             | offset <= maxdepth -> return (maxdepth - offset)
             | otherwise -> return 0
           Nothing -> return maxdepth
@@ -726,52 +728,170 @@ either Encoding { encEncode = encode1, encDecode = decode1,
                encSize = newSize, encInDomain = newInDomain,
                encMaxDepth = newMaxDepth, encDepth = newDepth,
                encHighestIndex = newHighestIndex }
-{-
+
 -- | Combine a set of encodings with the same dimension and result
 -- type into a single encoding which represents the disjoint union of
 -- the components.
-union :: [Encoding dim ty] -> Encoding dim ty
-union elems =
+union :: forall dim ty. [Encoding dim ty] -> Encoding dim ty
+union [] = error "union encoding with no arguments"
+union encodings =
   let
-    numelems = length elems
+    numelems = length encodings
 
-    sortfunc Nothing Nothing = EQ
-    sortfunc Nothing _ = GT
-    sortfunc _ Nothing = LT
-    sortfunc (Just a) (Just b) = compare a b
+    sortfunc (Nothing, _) (Nothing, _) = EQ
+    sortfunc (Nothing, _) _ = GT
+    sortfunc _ (Nothing, _) = LT
+    sortfunc (Just a, _) (Just b, _) = compare a b
 
-    (sizes, sortedelems) = unzip (sort (map (\enc -> (size enc, enc) elems)))
+    (sizes, sortedencodings) =
+      unzip (sortBy sortfunc (map (\enc -> (size enc, enc)) encodings))
     -- Turn the sorted element encodings into an array for fast access
-    elemarr = Array.listArray (0, numelems - 1) sortedelems
+    encodingarr :: Array.Array Int (Encoding dim ty)
+    encodingarr = Array.listArray (0, numelems - 1) sortedencodings
 
-    -- Turn the list of sizes into an an array indicating how far into
-    -- the array to skip.
-    sizeindextree =
+    (fwdmapnum, revmapnum) =
       let
-        foldfun (ind, accum) elemsize =
-          case elemsizes of
-            (_, elemsize') : rest | elemsize == elemsize' ->
-              (ind + 1, (elemsize, ind) : rest)
-            _ -> (ind + 1 (elemsize, ind) : accum)
-      in
-        toBinTree (reverse (map (\(n, i) -> (n * n, i))
-                           (foldl foldfun (0, []) sizes)))
+        -- An ordered list of the sizes of isomorphisms and how far into
+        -- the array to start.
+        sizeclasses :: [(Maybe Integer, Int)]
+        sizeclasses =
+          let
+            foldfun (ind, accum) elemsize =
+              case accum of
+                (elemsize', _) : rest | elemsize == elemsize' ->
+                  (ind + 1, (elemsize, ind) : rest)
+                _ -> (ind + 1, (elemsize, ind) : accum)
+
+            (_, out) = foldl foldfun (0, []) sizes
+          in
+            reverse out
+
+        -- The mapping functions used to encode within a single size
+        -- class.
+        fwdmapbasic base width num enc =
+          (num * toInteger width) + (toInteger enc) + base
+        revmapbasic base width num
+          | fromInteger num < width = (base, fromInteger num)
+          | otherwise = ((num `quot` toInteger width) + base,
+                         fromInteger (num `mod` toInteger width))
+      in case sizeclasses of
+        -- If there is only one size class, then 
+        [ _ ] -> (fwdmapbasic 0 numelems, revmapbasic 0 numelems)
+        (Just firstsize, _) : _  ->
+          let
+            (fwdtree, revtree) =
+              let
+                foldfun :: (Integer, Integer, [(Integer, (Integer, Int))],
+                            [(Integer, (Integer, Int))]) ->
+                           (Maybe Integer, Int) ->
+                           (Integer, Integer, [(Integer, (Integer, Int))],
+                            [(Integer, (Integer, Int))])
+                foldfun (lastsize, offset, fwds, revs) (Nothing, idx) =
+                  let
+                    thisnumencs = numelems - idx
+                  in
+                    (undefined, undefined,
+                     (lastsize, (offset, thisnumencs)) : fwds,
+                     (offset, (lastsize, thisnumencs)) : revs)
+                foldfun (lastsize, offset, fwds, revs) (Just thissize, idx) =
+                  let
+                    thisnumencs = numelems - idx
+                    sizediff = thissize - lastsize
+                  in
+                    (thissize, offset + (sizediff * toInteger thisnumencs),
+                     (lastsize, (offset, thisnumencs)) : fwds,
+                     (offset, (lastsize, thisnumencs)) : revs)
+
+                (_, _, fwdvals, revvals) =
+                  foldl foldfun
+                        (firstsize, (firstsize * toInteger numelems), [], [])
+                        sizeclasses
+              in
+                (toBinTree (reverse fwdvals), toBinTree (reverse revvals))
+
+            fwdmap num =
+              case closestBelow num fwdtree of
+                Nothing -> fwdmapbasic 0 numelems num
+                Just (sizeclass, (base, numencs)) ->
+                  fwdmapbasic base numencs (num - sizeclass)
+
+            revmap num =
+              case closestBelow num revtree of
+                Nothing -> revmapbasic 0 numelems num
+                Just (offset, (base, numencs)) ->
+                  revmapbasic base numencs (num - offset)
+          in
+            (fwdmap, revmap)
+        _ -> error "Internal error"
 
     encodefunc val =
+      case findIndex ((flip inDomain) val) encodings of
+        Just encidx ->
+          let
+            enc = (Array.!) encodingarr encidx
+            num = encode enc val
+          in
+           fwdmapnum num encidx
+        Nothing -> throw (IllegalArgument "Value not in domain of any component")
+
+    decodefunc num =
+      let
+        (encnum, encidx) = revmapnum num
+        encoding = (Array.!) encodingarr encidx
+      in
+        decode encoding encnum
 
     -- Sum up all the sizes, going to infinity if one of them in
     -- infinite
+    sizeval :: Maybe Integer
     sizeval =
       let
         foldfun accum n =
           do
             accumval <- accum
             nval <- n
-            return (n + accum)
+            return (nval + accumval)
       in
-        foldM foldfun (Just 0) sizes
+        foldl foldfun (Just 0) sizes
+
+    depthfunc dim val =
+      case find ((flip inDomain) val) encodings of
+        Just enc -> depth enc dim val
+        Nothing -> throw (IllegalArgument "Value not in domain of any component")
+
+    indomainfunc val = any ((flip inDomain) val) encodings
+    maxdepthfunc dim = maximum (map ((flip maxDepth) dim) encodings)
+    highindexfunc dim depthval =
+      maximum (map (\enc -> highestIndex enc dim depthval) encodings)
   in
-    Encoding { encSize = sizeval, }
+    Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encSize = sizeval, encInDomain = indomainfunc,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+               encHighestIndex = highindexfunc }
+{-
+-- This code is from HaskellWiki, and not subject to the copyright
+-- statement at the top of this file.
+--
+-- This should eventually be replaced with an implementation that
+-- calls GMP.
+(^!) :: Num a => a -> Int -> a
+(^!) x n = x ^ n
+
+isqrt :: Integer -> Integer
+isqrt 0 = 0
+isqrt 1 = 1
+isqrt n =
+  let
+    twopows = iterate (^! 2) 2
+    (lowerRoot, lowerN) =
+      last $ takeWhile ((n >=) . snd) $ zip (1 : twopows) twopows
+    newtonStep x = div (x + div n x) 2
+    iters = iterate newtonStep (isqrt (div n lowerN) * lowerRoot)
+    isRoot r = r ^! 2 <= n && n < (r + 1) ^! 2
+  in
+    head $ dropWhile (not . isRoot) iters
+
+-- End code from HaskellWiki
 
 -- | An alias for @product2@.
 pair = product2

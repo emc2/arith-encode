@@ -36,11 +36,11 @@ import Data.ArithEncode
 import Data.Char
 import Data.Hashable
 import Data.Int
-import Data.List
+import Data.List hiding (union)
 import Data.Maybe
 import Data.Word
 import Data.Set(Set)
-import Prelude hiding (either)
+import Prelude hiding (either, union)
 import Test.HUnitPlus.Base
 
 import qualified Data.Array as Array
@@ -177,7 +177,7 @@ testLinearDepthEncoding tags iso vals nonvals =
           Just idx -> toInteger (idx - 1)
           Nothing -> isosize - 1
       in do
-        highestIndex iso () idx @?= Just idx
+        highestIndex iso () depthval @?= Just idx
         testHighestIndex (depthval - 1)
   in
     [ testNameTags "isomorphism" ("isomorphism" : tags)
@@ -599,6 +599,111 @@ eitherTests =
                                           map Right nonvals)
     ]
 
+data Variant a b c d = First a | Second b | Third c | Fourth d
+  deriving (Show, Eq, Ord)
+
+instance (Hashable a, Hashable b, Hashable c, Hashable d) =>
+         Hashable (Variant a b c d) where
+  hashWithSalt s (First x) = s `hashWithSalt` (1 :: Int) `hashWithSalt` x
+  hashWithSalt s (Second x) = s `hashWithSalt` (2 :: Int) `hashWithSalt` x
+  hashWithSalt s (Third x) = s `hashWithSalt` (3 :: Int) `hashWithSalt` x
+  hashWithSalt s (Fourth x) = s `hashWithSalt` (4 :: Int) `hashWithSalt` x
+
+unionTests =
+  let
+    oneEnc = (linearDepthEncoding ['A'], ['A'], ['B'], "one")
+    twoEnc = (linearDepthEncoding ['A', 'B'], ['A', 'B'], ['C', 'D'], "two")
+    threeEnc = (linearDepthEncoding ['A', 'B', 'C'],
+                ['A', 'B', 'C'], ['D', 'E', 'F'], "three")
+    fiveEnc = (linearDepthEncoding ['A', 'B', 'C', 'D', 'E'],
+               ['A', 'B', 'C', 'D', 'E'], ['F', 'G', 'H', 'I', 'J'], "five")
+    infEnc = (integralInteger, [-5000..5000], [], "infinite")
+
+    makeUnionTest finite
+                  (firstenc, firstvals, firstnonvals, firstname)
+                  (secondenc, secondvals, secondnonvals, secondname)
+                  (thirdenc, thirdvals, thirdnonvals, thirdname)
+                  (fourthenc, fourthvals, fourthnonvals, fourthname) =
+      let
+        wrapFirst = wrap (\(First x) -> x) First firstenc
+        wrapSecond = wrap (\(Second x) -> x) Second secondenc
+        wrapThird = wrap (\(Third x) -> x) Third thirdenc
+        wrapFourth = wrap (\(Fourth x) -> x) Fourth fourthenc
+        iso = union [ wrapFirst, wrapSecond, wrapThird, wrapFourth ]
+        wrapFirstVals = map First firstvals
+        wrapSecondVals = map Second secondvals
+        wrapThirdVals = map Third thirdvals
+        wrapFourthVals = map Fourth fourthvals
+        vals = wrapFirstVals ++ wrapSecondVals ++ wrapThirdVals ++ wrapFourthVals
+        wrapFirstNonVals = map First firstnonvals
+        wrapSecondNonVals = map Second secondnonvals
+        wrapThirdNonVals = map Third thirdnonvals
+        wrapFourthNonVals = map Fourth fourthnonvals
+        nonvals = wrapFirstNonVals ++ wrapSecondNonVals ++
+                  wrapThirdNonVals ++ wrapFourthNonVals
+        name = firstname ++ "_" ++ secondname ++ "_" ++
+               thirdname ++ "_" ++ fourthname
+        valssize = toInteger (length vals)
+        isosize = if finite then Just valssize else Nothing
+        isolimit =
+          do
+            size <- isosize
+            return (size - 1)
+
+        testHighestIndex 0 = highestIndex iso () 0 @?= Just 0
+        testHighestIndex depthval =
+          let
+            idx = case findIndex ((> depthval) . depth iso ()) vals of
+              Just 0 -> Just 0
+              Just idx -> Just (toInteger (idx - 1))
+              Nothing -> isolimit
+          in do
+            highestIndex iso () depthval @?= idx
+            testHighestIndex (depthval - 1)
+      in
+        name ~:
+          [ testNameTags "isomorphism" ["isomorphism", "union"]
+                         (testEncodingVals iso vals),
+            testNameTags "size" ["size", "union"]
+                         (size iso @?= isosize),
+            testNameTags "bounds_low" ["bounds", "union"]
+                         (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                       (return $! decode iso (-1))),
+            testNameTags "inDomain" ["inDomain", "union"]
+                         (testInDomain iso vals),
+            testNameTags "not_inDomain" ["inDomain", "union"]
+                         (testNotInDomain iso nonvals),
+            testNameTags "maxDepth" ["maxDepth", "union"]
+                         (maxDepth iso () @?= isolimit),
+            testNameTags "highestIndex" ["highestIndex", "union"]
+                         (testHighestIndex (valssize - 1)) ] ++
+            if finite
+              then
+                [ testNameTags "bounds_high" ["bounds", "union"]
+                              (assertThrows (\(IllegalArgument _) ->
+                                              assertSuccess)
+                                            (return $!
+                                               decode iso
+                                                      (fromJust (size iso)))) ]
+              else []
+  in
+    [ makeUnionTest True oneEnc twoEnc threeEnc fiveEnc,
+      makeUnionTest True fiveEnc threeEnc twoEnc oneEnc,
+      makeUnionTest True oneEnc threeEnc fiveEnc fiveEnc,
+      makeUnionTest True oneEnc threeEnc threeEnc fiveEnc,
+      makeUnionTest True oneEnc oneEnc threeEnc fiveEnc,
+      makeUnionTest True oneEnc oneEnc oneEnc oneEnc,
+      makeUnionTest True twoEnc twoEnc twoEnc twoEnc,
+      makeUnionTest False oneEnc threeEnc fiveEnc infEnc,
+      makeUnionTest False twoEnc fiveEnc infEnc infEnc,
+      makeUnionTest False infEnc infEnc twoEnc fiveEnc,
+      makeUnionTest False infEnc fiveEnc infEnc twoEnc,
+      makeUnionTest False twoEnc fiveEnc fiveEnc infEnc,
+      makeUnionTest False fiveEnc fiveEnc infEnc infEnc,
+      makeUnionTest False fiveEnc infEnc infEnc infEnc,
+      makeUnionTest False infEnc infEnc infEnc infEnc
+    ]
+
 instance Hashable a => Hashable (Set a) where
   hashWithSalt s = Set.foldl hashWithSalt s
 
@@ -804,6 +909,7 @@ testlist = [
                               ['A', 'B', 'C', 'D', 'E'] ['F', 'G'],
     "exclude" ~: excludeTests,
     "either" ~: eitherTests,
+    "union" ~: unionTests,
     "set" ~: setTests,
     "hashSet" ~: hashSetTests
   ]
