@@ -417,7 +417,7 @@ fromOrdList elems =
 -- implements @depth@ as @depth enc . fwd@, which only works if @fwd@
 -- preserves all depths.  For more complex cases, use @mkEncoding@ to
 -- define a new encoding.
-wrap :: (a -> b)
+wrap :: (a -> Maybe b)
      -- ^ The forward encoding function.
      -> (b -> a)
      -- ^ The reverse encoding function.
@@ -428,10 +428,16 @@ wrap fwd rev enc @ Encoding { encEncode = encodefunc,
                               encDecode = decodefunc,
                               encInDomain = indomainfunc,
                               encDepth = depthfunc } =
-  enc { encEncode = encodefunc . fwd,
-        encDecode = rev . decodefunc,
-        encInDomain = indomainfunc . fwd,
-        encDepth = (\dim -> depthfunc dim . fwd) }
+  let
+    safefwd val =
+      case fwd val of
+        Just val' -> val'
+        Nothing -> throw (IllegalArgument "No mapping into underlying domain")
+  in
+    enc { encEncode = encodefunc . safefwd,
+          encDecode = rev . decodefunc,
+          encInDomain = maybe False indomainfunc . fwd,
+          encDepth = (\dim -> depthfunc dim . safefwd) }
 
 -- | Generate an encoding for @Maybe ty@ from an inner encoding for
 -- @ty@.  This adds one level of depth: @Nothing@ has depth @0@, and
