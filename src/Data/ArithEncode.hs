@@ -521,6 +521,7 @@ nonzero enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
 data BinTree key val =
     Branch key val (BinTree key val) (BinTree key val)
   | Nil
+    deriving Show
 
 -- | Find the tree node with the highest index less than the given key
 -- and return its data.
@@ -742,15 +743,18 @@ union :: forall dim ty. [Encoding dim ty] -> Encoding dim ty
 union [] = error "union encoding with no arguments"
 union encodings =
   let
+    numelems :: Int
     numelems = length encodings
 
-    sortfunc (Nothing, _) (Nothing, _) = EQ
-    sortfunc (Nothing, _) _ = GT
-    sortfunc _ (Nothing, _) = LT
-    sortfunc (Just a, _) (Just b, _) = compare a b
+    sortfunc Nothing Nothing = EQ
+    sortfunc Nothing _ = GT
+    sortfunc _ Nothing = LT
+    sortfunc (Just a) (Just b) = compare a b
+
+    sortpair (a, _) (b, _) = sortfunc a b
 
     (sizes, sortedencodings) =
-      unzip (sortBy sortfunc (map (\enc -> (size enc, enc)) encodings))
+      unzip (sortBy sortpair (map (\enc -> (size enc, enc)) encodings))
     -- Turn the sorted element encodings into an array for fast access
     encodingarr :: Array.Array Int (Encoding dim ty)
     encodingarr = Array.listArray (0, numelems - 1) sortedencodings
@@ -764,8 +768,8 @@ union encodings =
           let
             foldfun (ind, accum) elemsize =
               case accum of
-                (elemsize', _) : rest | elemsize == elemsize' ->
-                  (ind + 1, (elemsize, ind) : rest)
+                (elemsize', _) : _ | elemsize == elemsize' ->
+                  (ind + 1, accum)
                 _ -> (ind + 1, (elemsize, ind) : accum)
 
             (_, out) = foldl foldfun (0, []) sizes
@@ -775,15 +779,23 @@ union encodings =
         -- The mapping functions used to encode within a single size
         -- class.
         fwdmapbasic base width num enc =
-          (num * toInteger width) + (toInteger enc) + base
+          let
+            adjustedenc = enc - (numelems - width)
+          in
+            ((num * toInteger width) + (toInteger adjustedenc) + base)
         revmapbasic base width num
-          | fromInteger num < width = (base, fromInteger num)
+          | (fromInteger num) < width =
+            let
+              adjustedenc = fromInteger num + (numelems - width)
+            in
+              (base, adjustedenc)
           | otherwise = ((num `quot` toInteger width) + base,
-                         fromInteger (num `mod` toInteger width))
+                         fromInteger (num `mod` toInteger width) +
+                         (numelems - width))
       in case sizeclasses of
         -- If there is only one size class, then 
         [ _ ] -> (fwdmapbasic 0 numelems, revmapbasic 0 numelems)
-        (Just firstsize, _) : _  ->
+        (Just firstsize, _) : rest  ->
           let
             (fwdtree, revtree) =
               let
@@ -811,18 +823,18 @@ union encodings =
                 (_, _, fwdvals, revvals) =
                   foldl foldfun
                         (firstsize, (firstsize * toInteger numelems), [], [])
-                        sizeclasses
+                        rest
               in
                 (toBinTree (reverse fwdvals), toBinTree (reverse revvals))
 
-            fwdmap num =
-              case closestBelow num fwdtree of
-                Nothing -> fwdmapbasic 0 numelems num
+            fwdmap num enc =
+              case closestWithin num fwdtree of
+                Nothing -> fwdmapbasic 0 numelems num enc
                 Just (sizeclass, (base, numencs)) ->
-                  fwdmapbasic base numencs (num - sizeclass)
+                  fwdmapbasic base numencs (num - sizeclass) enc
 
             revmap num =
-              case closestBelow num revtree of
+              case closestWithin num revtree of
                 Nothing -> revmapbasic 0 numelems num
                 Just (offset, (base, numencs)) ->
                   revmapbasic base numencs (num - offset)
@@ -831,7 +843,7 @@ union encodings =
         _ -> error "Internal error"
 
     encodefunc val =
-      case findIndex ((flip inDomain) val) encodings of
+      case findIndex ((flip inDomain) val) sortedencodings of
         Just encidx ->
           let
             enc = (Array.!) encodingarr encidx
@@ -861,14 +873,20 @@ union encodings =
         foldl foldfun (Just 0) sizes
 
     depthfunc dim val =
-      case find ((flip inDomain) val) encodings of
+      case find ((flip inDomain) val) sortedencodings of
         Just enc -> depth enc dim val
         Nothing -> throw (IllegalArgument "Value not in domain of any component")
 
-    indomainfunc val = any ((flip inDomain) val) encodings
-    maxdepthfunc dim = maximum (map ((flip maxDepth) dim) encodings)
+    indomainfunc val = any ((flip inDomain) val) sortedencodings
+    maxdepthfunc dim = maximum (map ((flip maxDepth) dim) sortedencodings)
     highindexfunc dim depthval =
-      maximum (map (\enc -> highestIndex enc dim depthval) encodings)
+      let
+        mapfun (encidx, enc) =
+          do
+            highidx <- highestIndex enc dim depthval
+            return (fwdmapnum highidx encidx)
+      in
+        maximumBy sortfunc (map mapfun (Array.assocs encodingarr))
   in
     Encoding { encEncode = encodefunc, encDecode = decodefunc,
                encSize = sizeval, encInDomain = indomainfunc,

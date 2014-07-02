@@ -617,7 +617,7 @@ unionTests =
                 ['A', 'B', 'C'], ['D', 'E', 'F'], "three")
     fiveEnc = (linearDepthEncoding ['A', 'B', 'C', 'D', 'E'],
                ['A', 'B', 'C', 'D', 'E'], ['F', 'G', 'H', 'I', 'J'], "five")
-    infEnc = (integralInteger, [-5000..5000], [], "infinite")
+    infEnc = (integralInteger, [-10..10], [], "infinite")
 
     makeUnionTest finite
                   (firstenc, firstvals, firstnonvals, firstname)
@@ -658,16 +658,37 @@ unionTests =
             size <- isosize
             return (size - 1)
 
-        testHighestIndex 0 = highestIndex iso () 0 @?= Just 0
-        testHighestIndex depthval =
-          let
-            idx = case findIndex ((> depthval) . depth iso ()) vals of
-              Just 0 -> Just 0
-              Just idx -> Just (toInteger (idx - 1))
-              Nothing -> isolimit
-          in do
-            highestIndex iso () depthval @?= idx
-            testHighestIndex (depthval - 1)
+        sortfunc Nothing Nothing = EQ
+        sortfunc Nothing _ = GT
+        sortfunc _ Nothing = LT
+        sortfunc (Just a) (Just b) = compare a b
+
+        firstdepth = maxDepth firstenc ()
+        seconddepth = maxDepth secondenc ()
+        thirddepth = maxDepth thirdenc ()
+        fourthdepth = maxDepth fourthenc ()
+        highdepth = maximumBy sortfunc [maxDepth firstenc (),
+                                        maxDepth secondenc (),
+                                        maxDepth thirdenc (),
+                                        maxDepth fourthenc ()]
+
+        testHighestIndex depthval
+          | depthval < 0 = return ()
+          | maximumBy sortfunc [highestIndex firstenc () depthval,
+                                highestIndex secondenc () depthval,
+                                highestIndex thirdenc () depthval,
+                                highestIndex fourthenc () depthval] == Nothing =
+            highestIndex iso () depthval @?= Nothing
+          | otherwise=
+            let
+              indexes = filter ((<= depthval) . depth iso () . decode iso)
+                               [0..(toInteger (length vals - 1))]
+              idx = case indexes of
+                [] -> isolimit
+                _ -> Just (maximum indexes)
+            in do
+              highestIndex iso () depthval @?= idx
+              testHighestIndex (depthval - 1)
       in
         name ~:
           [ testNameTags "isomorphism" ["isomorphism", "union"]
@@ -682,9 +703,9 @@ unionTests =
             testNameTags "not_inDomain" ["inDomain", "union"]
                          (testNotInDomain iso nonvals),
             testNameTags "maxDepth" ["maxDepth", "union"]
-                         (maxDepth iso () @?= isolimit),
+                         (maxDepth iso () @?= highdepth),
             testNameTags "highestIndex" ["highestIndex", "union"]
-                         (testHighestIndex (valssize - 1)) ] ++
+                         (testHighestIndex (fromJust highdepth)) ] ++
             if finite
               then
                 [ testNameTags "bounds_high" ["bounds", "union"]
@@ -701,8 +722,7 @@ unionTests =
       makeUnionTest True oneEnc threeEnc threeEnc fiveEnc,
       makeUnionTest True oneEnc oneEnc threeEnc fiveEnc,
       makeUnionTest True oneEnc oneEnc oneEnc oneEnc,
-      makeUnionTest True twoEnc twoEnc twoEnc twoEnc
-      {-
+      makeUnionTest True twoEnc twoEnc twoEnc twoEnc,
       makeUnionTest False oneEnc threeEnc fiveEnc infEnc,
       makeUnionTest False twoEnc fiveEnc infEnc infEnc,
       makeUnionTest False infEnc infEnc twoEnc fiveEnc,
@@ -711,7 +731,6 @@ unionTests =
       makeUnionTest False fiveEnc fiveEnc infEnc infEnc,
       makeUnionTest False fiveEnc infEnc infEnc infEnc,
       makeUnionTest False infEnc infEnc infEnc infEnc
--}
     ]
 
 instance Hashable a => Hashable (Set a) where
