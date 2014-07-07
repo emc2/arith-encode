@@ -40,7 +40,7 @@ import Data.List hiding (union)
 import Data.Maybe
 import Data.Word
 import Data.Set(Set)
-import Prelude hiding (either, union)
+import Prelude hiding (either, union, seq)
 import Test.HUnitPlus.Base
 
 import qualified Data.Array as Array
@@ -903,6 +903,84 @@ hashSetTests = [
                      ['A', 'B', 'C', 'D', 'E'] 'F'
   ]
 
+finiteSeqTests =
+  let
+    inner = linearDepthEncoding ['A', 'B', 'C']
+    vals = [[], ['A'], ['B'], ['C'], ['A', 'A'], ['A', 'B'], ['A', 'C'],
+            ['B', 'A'], ['B', 'B'], ['B', 'C'], ['C', 'A'], ['C', 'B'],
+            ['C', 'C'], ['A', 'A', 'A'], ['A', 'A', 'B'], ['A', 'A', 'C'],
+            ['A', 'B', 'A'], ['A', 'B', 'B'], ['A', 'B', 'C'],
+            ['A', 'C', 'A'], ['A', 'C', 'B'], ['A', 'C', 'C'],
+            ['B', 'A', 'A'], ['B', 'A', 'B'], ['B', 'A', 'C'],
+            ['B', 'B', 'A'], ['B', 'B', 'B'], ['B', 'B', 'C'],
+            ['B', 'C', 'A'], ['B', 'C', 'B'], ['B', 'C', 'C'],
+            ['C', 'A', 'A'], ['C', 'A', 'B'], ['C', 'A', 'C'],
+            ['C', 'B', 'A'], ['C', 'B', 'B'], ['C', 'B', 'C'],
+            ['C', 'C', 'A'], ['C', 'C', 'B'], ['C', 'C', 'C']]
+    nonvals = [['D'], ['D', 'A'], ['A', 'D'], ['A', 'A', 'D'], ['A', 'D', 'A']]
+    iso = seq inner
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "seq"]
+                   (testEncodingVals iso vals),
+      testNameTags "bounds_low" ["bounds", "seq"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "size" ["size", "seq"] (size iso @?= Nothing),
+      testNameTags "inDomain" ["inDomain", "seq"] (testInDomain iso vals),
+      testNameTags "notInDomain" ["inDomain", "seq"]
+                   (testNotInDomain iso nonvals),
+      testNameTags "depth" ["depth", "seq"]
+                   (mapM_ (\val -> depth iso (SeqElem ()) val @?=
+                                   if [] /= val
+                                     then maximum (map (depth inner ()) val)
+                                     else 0)
+                          vals),
+      testNameTags "depth" ["depth", "seq"]
+                   (mapM_ (\val -> depth iso SeqLen val @?=
+                                   toInteger (length val))
+                          vals),
+      testNameTags "maxDepth" ["maxDepth", "seq"]
+                   (maxDepth iso (SeqElem ()) @?= maxDepth inner ()),
+      testNameTags "maxDepth" ["maxDepth", "seq"]
+                   (maxDepth iso SeqLen @?= Nothing),
+      testNameTags "highestIndex" ["highestIndex", "seq"]
+                   (highestIndex iso (SeqElem ()) 0 @?= Nothing)
+    ]
+
+infiniteSeqTests =
+  let
+    inner = integralInteger
+    iso = seq inner
+    limit = 10000
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "seq"]
+                   (testIsomorphism iso limit),
+      testNameTags "bounds_low" ["bounds", "seq"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "size" ["size", "seq"] (size iso @?= Nothing),
+      testNameTags "inDomain" ["inDomain", "seq"]
+                   (testInDomain iso (map (decode iso) [0..limit])),
+      testNameTags "depth" ["depth", "seq"]
+                   (mapM_ (\n -> depth iso (SeqElem ()) (decode iso n) @?= 0)
+                          [0..limit]),
+      testNameTags "depth" ["depth", "seq"]
+                   (mapM_ (\n -> depth iso SeqLen (decode iso n) @?=
+                                   toInteger (length (decode iso n)))
+                          [0..limit]),
+      testNameTags "maxDepth" ["maxDepth", "seq"]
+                   (maxDepth iso (SeqElem ()) @?= Just 0),
+      testNameTags "maxDepth" ["maxDepth", "seq"]
+                   (maxDepth iso SeqLen @?= Nothing),
+      testNameTags "highestIndex" ["highestIndex", "seq"]
+                   (highestIndex iso (SeqElem ()) 0 @?= Nothing)
+  ]
+
+seqTests = [
+    "finite" ~: finiteSeqTests,
+    "infinite" ~: infiniteSeqTests
+  ]
+
 testlist :: [Test]
 testlist = [
     "identity" ~: testInfDimlessEncoding ["Integer"] identity,
@@ -940,7 +1018,8 @@ testlist = [
     "either" ~: eitherTests,
     "union" ~: unionTests,
     "set" ~: setTests,
-    "hashSet" ~: hashSetTests
+    "hashSet" ~: hashSetTests,
+    "seq" ~: seqTests
   ]
 
 tests :: Test

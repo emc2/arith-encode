@@ -764,7 +764,6 @@ union encodings =
       let
         -- An ordered list of the sizes of isomorphisms and how far into
         -- the array to start.
-        sizeclasses :: [(Maybe Integer, Int)]
         sizeclasses =
           let
             foldfun (ind, accum) elemsize =
@@ -800,11 +799,6 @@ union encodings =
           let
             (fwdtree, revtree) =
               let
-                foldfun :: (Integer, Integer, [(Integer, (Integer, Int))],
-                            [(Integer, (Integer, Int))]) ->
-                           (Maybe Integer, Int) ->
-                           (Integer, Integer, [(Integer, (Integer, Int))],
-                            [(Integer, (Integer, Int))])
                 foldfun (lastsize, offset, fwds, revs) (Nothing, idx) =
                   let
                     thisnumencs = numelems - idx
@@ -862,7 +856,6 @@ union encodings =
 
     -- Sum up all the sizes, going to infinity if one of them in
     -- infinite
-    sizeval :: Maybe Integer
     sizeval =
       let
         foldfun accum n =
@@ -1117,6 +1110,7 @@ seq Encoding { encEncode = encodefunc, encDecode = decodefunc,
     newInDomain = all indomainfunc
 
     newDepth SeqLen val = toInteger (length val)
+    newDepth (SeqElem _) [] = 0
     newDepth (SeqElem dim) val = maximum (map (depthfunc dim) val)
 
     newMaxDepth SeqLen = Nothing
@@ -1154,6 +1148,11 @@ seq Encoding { encEncode = encodefunc, encDecode = decodefunc,
         -- For encodings with no maximum size, we use a dovetailing approach.
         Nothing ->
           let
+--            printbin 0 = ""
+--            printbin n
+--              | testBit n 0 = printbin (n `shiftR` 1) ++ "1"
+--              | otherwise = printbin (n `shiftR` 1) ++ "0"
+
             newencodefunc [] = 0
             newencodefunc (first : rest) =
               let
@@ -1182,8 +1181,8 @@ seq Encoding { encEncode = encodefunc, encDecode = decodefunc,
                 leadingOnes =
                   let
                     leadingOnes' count n
-                      | testBit n 0 = count
-                      | otherwise = leadingOnes' (count + 1) (n `shiftR` 1)
+                      | testBit n 0 = leadingOnes' (count + 1) (n `shiftR` 1)
+                      | otherwise = count
                   in
                     leadingOnes' 0
 
