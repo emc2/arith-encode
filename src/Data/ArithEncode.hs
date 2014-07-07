@@ -116,15 +116,15 @@ module Data.ArithEncode(
        quint,-}
        SetDim(..),
        set,
-       hashSet{-,
-       seq-}
+       hashSet,
+       SeqDim(..),
+       seq
        -- ** Derived Constructions
        {-
        map,
        hashMap,
        func,
-       hashFunc,
-       finiteSeq-}
+       hashFunc-}
        ) where
 
 import Control.Exception
@@ -137,7 +137,7 @@ import Data.Maybe
 import Data.Set(Set)
 import Data.Typeable
 --import Debug.Trace
-import Prelude hiding (elem, either)
+import Prelude hiding (elem, either, seq)
 
 import qualified Data.Array.IArray as Array
 import qualified Data.Either as Either
@@ -736,6 +736,12 @@ either Encoding { encEncode = encode1, encDecode = decode1,
                encMaxDepth = newMaxDepth, encDepth = newDepth,
                encHighestIndex = newHighestIndex }
 
+sortfunc :: Maybe Integer -> Maybe Integer -> Ordering
+sortfunc Nothing Nothing = EQ
+sortfunc Nothing _ = GT
+sortfunc _ Nothing = LT
+sortfunc (Just a) (Just b) = compare a b
+
 -- | Combine a set of encodings with the same dimension and result
 -- type into a single encoding which represents the disjoint union of
 -- the components.
@@ -745,11 +751,6 @@ union encodings =
   let
     numelems :: Int
     numelems = length encodings
-
-    sortfunc Nothing Nothing = EQ
-    sortfunc Nothing _ = GT
-    sortfunc _ Nothing = LT
-    sortfunc (Just a) (Just b) = compare a b
 
     sortpair (a, _) (b, _) = sortfunc a b
 
@@ -1093,5 +1094,124 @@ hashSet Encoding { encEncode = encodefunc, encDecode = decodefunc,
   in
     Encoding { encEncode = newEncode, encDecode = newDecode,
                encSize = newSize, encInDomain = newInDomain,
+               encDepth = newDepth, encMaxDepth = newMaxDepth,
+               encHighestIndex = newHighestIndex }
+
+-- | Dimension constructor for sequences.  Adds a dimension
+-- representing length.
+data SeqDim dim =
+  -- | A Dimension representing the length of the sequence.
+    SeqLen
+  -- | A dimension representing the dimensions of the elements.  The
+  -- depth of a set in a given element dimension is the maximum of
+  -- the depths of all its elements in that dimension.
+  | SeqElem dim
+
+-- | Construct an encoding for sequences of a type from an encoding
+-- for values of that type.
+seq :: Encoding dim ty -> Encoding (SeqDim dim) [ty]
+seq Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encInDomain = indomainfunc, encSize = sizeval,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc  } =
+  let
+    newInDomain = all indomainfunc
+
+    newDepth SeqLen val = toInteger (length val)
+    newDepth (SeqElem dim) val = maximum (map (depthfunc dim) val)
+
+    newMaxDepth SeqLen = Nothing
+    newMaxDepth (SeqElem dim) = maxdepthfunc dim
+
+    (newEncode, newDecode, newHighestIndex) =
+      case sizeval of
+        -- For encodings with a maximum size s, a list with n elements
+        -- e_i is encoded as e_n + s e_(n-1) + ... s^n e_1
+        Just finitesize ->
+          let
+            withendsize = finitesize + 1
+
+            newencodefunc =
+              let
+                foldfun accum = (((accum * withendsize) + 1) +) . encodefunc
+              in
+                foldl foldfun 0
+
+            newdecodefunc =
+              let
+                newdecodefunc' accum 0 = accum
+                newdecodefunc' accum num =
+                  let
+                    decoded = decodefunc ((num `mod` withendsize) - 1)
+                  in
+                    newdecodefunc' (decoded : accum) (num `quot` withendsize)
+              in
+                newdecodefunc' []
+
+            newhighindexfunc SeqLen n = Just (n * withendsize)
+            newhighindexfunc (SeqElem _) _ = Nothing
+          in
+            (newencodefunc, newdecodefunc, newhighindexfunc)
+        -- For encodings with no maximum size, we use a dovetailing approach.
+        Nothing ->
+          let
+            newencodefunc [] = 0
+            newencodefunc (first : rest) =
+              let
+                insertUnary bin val =
+                  let
+                    encoded = encodefunc val
+                    shifted = bin `shiftL` (fromInteger encoded)
+                  in
+                    shifted .|. ((2 ^ encoded) - 1)
+
+                foldfun accum val =
+                  let
+                    shifted = accum `shiftL` 1
+                  in
+                    insertUnary shifted val
+
+                initial = insertUnary 1 first
+              in
+                foldl foldfun initial rest
+
+            newdecodefunc 0 = []
+            newdecodefunc num =
+              let
+                -- Count leading ones
+                leadingOnes :: Integer -> Integer
+                leadingOnes =
+                  let
+                    leadingOnes' count n
+                      | testBit n 0 = count
+                      | otherwise = leadingOnes' (count + 1) (n `shiftR` 1)
+                  in
+                    leadingOnes' 0
+
+                extractUnary bin =
+                  let
+                    unaryLen = leadingOnes bin
+                    shifted = bin `shiftR` (fromInteger (unaryLen + 1))
+                    decoded
+                      | shifted /= 0 = decodefunc unaryLen
+                      | otherwise = decodefunc (unaryLen - 1)
+                  in
+                    (decoded, shifted)
+
+                doDecode accum 0 = accum
+                doDecode accum bin =
+                  let
+                    (val, newbin) = extractUnary bin
+                  in
+                    doDecode (val : accum) newbin
+              in
+                doDecode [] num
+
+            newhighindexfunc SeqLen 0 = Just 0
+            newhighindexfunc _ _ = Nothing
+          in
+            (newencodefunc, newdecodefunc, newhighindexfunc)
+  in
+    Encoding { encEncode = newEncode, encDecode = newDecode,
+               encSize = Nothing, encInDomain = newInDomain,
                encDepth = newDepth, encMaxDepth = newMaxDepth,
                encHighestIndex = newHighestIndex }
