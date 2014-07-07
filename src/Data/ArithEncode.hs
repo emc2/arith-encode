@@ -1148,11 +1148,6 @@ seq Encoding { encEncode = encodefunc, encDecode = decodefunc,
         -- For encodings with no maximum size, we use a dovetailing approach.
         Nothing ->
           let
---            printbin 0 = ""
---            printbin n
---              | testBit n 0 = printbin (n `shiftR` 1) ++ "1"
---              | otherwise = printbin (n `shiftR` 1) ++ "0"
-
             newencodefunc [] = 0
             newencodefunc (first : rest) =
               let
