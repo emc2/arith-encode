@@ -109,11 +109,17 @@ module Data.ArithEncode(
        exclude,
        either,
        union,
-{-
        pair,
+       {-
        triple,
        quad,
-       quint,-}
+       quint,
+       sextet,
+       septet,
+       octet,
+       nonet,
+       decet,
+-}
        SetDim(..),
        set,
        hashSet,
@@ -886,42 +892,77 @@ union encodings =
                encSize = sizeval, encInDomain = indomainfunc,
                encDepth = depthfunc, encMaxDepth = maxdepthfunc,
                encHighestIndex = highindexfunc }
-{-
--- This code is from HaskellWiki, and not subject to the copyright
--- statement at the top of this file.
---
--- This should eventually be replaced with an implementation that
--- calls GMP.
-(^!) :: Num a => a -> Int -> a
-(^!) x n = x ^ n
 
-isqrt :: Integer -> Integer
-isqrt 0 = 0
-isqrt 1 = 1
-isqrt n =
+-- | Take encodings for two datatypes A and B, and build an encoding
+-- for a pair (A, B).
+pair :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding (dim1, dim2) (ty1, ty2)
+pair Encoding { encEncode = encode1, encDecode = decode1,
+                encInDomain = indomain1, encSize = sizeval1,
+                encDepth = depth1, encHighestIndex = highindex1,
+                encMaxDepth = maxDepth1 }
+     Encoding { encEncode = encode2, encDecode = decode2,
+                encInDomain = indomain2, encSize = sizeval2,
+                encDepth = depth2, encHighestIndex = highindex2,
+                encMaxDepth = maxDepth2 } =
   let
-    twopows = iterate (^! 2) 2
-    (lowerRoot, lowerN) =
-      last $ takeWhile ((n >=) . snd) $ zip (1 : twopows) twopows
-    newtonStep x = div (x + div n x) 2
-    iters = iterate newtonStep (isqrt (div n lowerN) * lowerRoot)
-    isRoot r = r ^! 2 <= n && n < (r + 1) ^! 2
+    encodefunc (val1, val2) =
+      let
+        encoded1 = encode1 val1
+        encoded2 = encode2 val2
+        base = ((encoded1 + encoded2) ^ (2 :: Int)) `quot` 2
+      in
+        base + encoded2
+
+    decodefunc num =
+      let
+        sumval = (isqrt (num * 2))
+        num2 = num - sumval
+        num1 = sumval - num2
+      in
+        (decode1 num1, decode2 num2)
+
+    indomainfunc (val1, val2) = indomain1 val1 && indomain2 val2
+    depthfunc (dim1, dim2) (val1, val2) = max (depth1 dim1 val1) (depth2 dim2 val2)
+
+    sizeval =
+      do
+        size1 <- sizeval1
+        size2 <- sizeval2
+        return (size1 * size2)
+
+    maxdepthfunc (dim1, dim2) =
+      do
+        maxdepthval1 <- maxDepth1 dim1
+        maxdepthval2 <- maxDepth2 dim2
+        return (max maxdepthval1 maxdepthval2)
+
+    highindexfunc (dim1, dim2) num =
+      do
+        idx1 <- highindex1 dim1 num
+        idx2 <- highindex2 dim2 num
+        return (max idx1 idx2)
   in
-    head $ dropWhile (not . isRoot) iters
-
--- End code from HaskellWiki
-
--- | An alias for @product2@.
-pair = product2
-
+    Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encSize = sizeval, encInDomain = indomainfunc,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+               encHighestIndex = highindexfunc }
+{-
 -- | An alias for @product3@.
-triple a b c = pair (pair a b) c
+triple :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
+          Encoding (dim1, dim2, dim3) (ty1, ty2, ty3)
+--triple a b c = pair (pair a b) c
 
 -- | An alias for @product4@.
-quad a b c d = pair (pair a b) (pair c d)
+quad :: Encoding dim1 ty1 -> Encoding dim2 ty2 ->
+        Encoding dim3 ty3 -> Encoding dim4 ty4 ->
+        Encoding (dim1, dim2, dim3, dim4) (ty1, ty2, ty3, ty4)
+--quad a b c d = pair (pair a b) (pair c d)
 
 -- | An alias for @product5@
-quint a b c d e = pair (pair a b) (triple c d e)
+quint :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
+         Encoding dim4 ty4 -> Encoding dim5 ty5 ->
+         Encoding (dim1, dim2, dim3, dim4, dim5) (ty1, ty2, ty3, ty4, ty5)
+--quint a b c d e = pair (pair a b) (triple c d e)
 -}
 -- | A datatype representing the dimensions of a set.
 data SetDim dim =
@@ -1209,3 +1250,27 @@ seq Encoding { encEncode = encodefunc, encDecode = decodefunc,
                encSize = Nothing, encInDomain = newInDomain,
                encDepth = newDepth, encMaxDepth = newMaxDepth,
                encHighestIndex = newHighestIndex }
+
+-- THIS CODE IS FROM HASKELLWIKI, AND THEREFORE NOT SUBJECT TO THE
+-- COPYRIGHT CLAIM AT THE TOP OF THIS FILE
+--
+-- This should eventually be replaced with an implementation that
+-- calls GMP.
+(^!) :: Num a => a -> Int -> a
+(^!) x n = x ^ n
+
+isqrt :: Integer -> Integer
+isqrt 0 = 0
+isqrt 1 = 1
+isqrt n =
+  let
+    twopows = iterate (^! 2) 2
+    (lowerRoot, lowerN) =
+      last $ takeWhile ((n >=) . snd) $ zip (1 : twopows) twopows
+    newtonStep x = div (x + div n x) 2
+    iters = iterate newtonStep (isqrt (div n lowerN) * lowerRoot)
+    isRoot r = r ^! 2 <= n && n < (r + 1) ^! 2
+  in
+    head $ dropWhile (not . isRoot) iters
+
+-- END CODE NOT SUBJECT TO COPYRIGHT CLAIM
