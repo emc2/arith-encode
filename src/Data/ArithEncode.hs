@@ -353,7 +353,7 @@ integral =
     mkInfDimlessEncoding encodefunc decodefunc (const True)
 
 -- | Build an encoding from a finite range of 'Integral's.
-interval :: (Show n, Integral n)
+interval :: Integral n
          => n
          -- ^ The (inclusive) lower bound on the range.
          -> n
@@ -905,30 +905,50 @@ pair Encoding { encEncode = encode1, encDecode = decode1,
                 encDepth = depth2, encHighestIndex = highindex2,
                 encMaxDepth = maxDepth2 } =
   let
-    encodefunc (val1, val2) =
-      let
-        encoded1 = encode1 val1
-        encoded2 = encode2 val2
-        base = ((encoded1 + encoded2) ^ (2 :: Int)) `quot` 2
-      in
-        base + encoded2
+    (encodefunc, decodefunc) =
+      case (sizeval1, sizeval2) of
+        (Just maxval, _) ->
+          let
+            newencode (val1, val2) = ((encode2 val2) * maxval) + (encode1 val1)
+            newdecode num = (decode1 (num `mod` maxval), decode2 (num `quot` maxval))
+          in
+            (newencode, newdecode)
+        (_, Just maxval) ->
+          let
+            newencode (val1, val2) = ((encode1 val1) * maxval) + (encode2 val2)
+            newdecode num = (decode1 (num `quot` maxval), decode2 (num `mod` maxval))
+          in
+            (newencode, newdecode)
+        (Nothing, Nothing) ->
+          let
+            newencode (val1, val2) =
+              let
+                encoded1 = encode1 val1
+                encoded2 = encode2 val2
+                sumval = encoded1 + encoded2
+                base = (((sumval + 1) * sumval)) `quot` 2
+              in
+                base + encoded2
 
-    decodefunc num =
-      let
-        sumval = (isqrt (num * 2))
-        num2 = num - sumval
-        num1 = sumval - num2
-      in
-        (decode1 num1, decode2 num2)
-
-    indomainfunc (val1, val2) = indomain1 val1 && indomain2 val2
-    depthfunc (dim1, dim2) (val1, val2) = max (depth1 dim1 val1) (depth2 dim2 val2)
+            newdecode num =
+              let
+                sumval = (isqrt ((8 * num) + 1) - 1) `quot` 2
+                base = (((sumval + 1) * sumval)) `quot` 2
+                num2 = num - base
+                num1 = sumval - num2
+              in
+                (decode1 num1, decode2 num2)
+          in
+            (newencode, newdecode)
 
     sizeval =
       do
         size1 <- sizeval1
         size2 <- sizeval2
         return (size1 * size2)
+
+    indomainfunc (val1, val2) = indomain1 val1 && indomain2 val2
+    depthfunc (dim1, dim2) (val1, val2) = max (depth1 dim1 val1) (depth2 dim2 val2)
 
     maxdepthfunc (dim1, dim2) =
       do

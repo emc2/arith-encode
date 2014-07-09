@@ -627,7 +627,7 @@ finitePairTests =
       testNameTags "maxDepth" ["maxDepth", "pair"]
                    (maxDepth iso ((), ()) @?= Just 0),
       testNameTags "highestIndex" ["highestIndex", "pair"]
-                   (highestIndex iso ((), ()) 0 @?= Just isosize)
+                   (highestIndex iso ((), ()) 0 @?= Just 4)
     ]
 
 infinitePairTests iso1 iso2 limit =
