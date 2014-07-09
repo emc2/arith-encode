@@ -123,12 +123,6 @@ module Data.ArithEncode(
        hashSet,
        SeqDim(..),
        seq
-       -- ** Derived Constructions
-       {-
-       map,
-       hashMap,
-       func,
-       hashFunc-}
        ) where
 
 import Control.Exception
