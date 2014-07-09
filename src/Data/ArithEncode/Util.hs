@@ -27,16 +27,47 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
-{-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
+{-# OPTIONS_GHC -Wall -Werror #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
--- | Contains a number of encodings for various useful data types.
+-- | Derived encodings for standard datatypes.
 module Data.ArithEncode.Util(
-       unit
+       unit,
+       nonEmptySeq,
+       nonEmptySet,
+       nonEmptyHashSet
+       {-
+       map,
+       hashMap,
+       func,
+       hashFunc-}
        ) where
 
 import Data.ArithEncode
+import Data.Hashable
+import Data.Set(Set)
+import Prelude hiding (seq)
+
+--import qualified Data.HashMap as HashMap
+import qualified Data.HashSet as HashSet
+--import qualified Data.Map as Map
 
 -- | An encoding that produces @()@.
 unit :: Encoding () ()
 unit = singleton ()
+
+-- | Build an encoding that produces non-empty sequences from an
+-- encoding for the elements of the sequence.
+nonEmptySeq :: Encoding dim ty -> Encoding (SeqDim dim) [ty]
+nonEmptySeq = nonzero . seq
+
+-- | Build an encoding that produces non-empty sets from an encoding
+-- for the elements of the set.
+nonEmptySet :: Ord ty => Encoding dim ty -> Encoding (SetDim dim) (Set ty)
+nonEmptySet = nonzero . set
+
+-- | Build an encoding that produces non-empty hash sets from an encoding
+-- for the elements of the set.
+nonEmptyHashSet :: (Hashable ty, Ord ty) =>
+                   Encoding dim ty -> Encoding (SetDim dim) (HashSet.Set ty)
+nonEmptyHashSet = nonzero . hashSet
