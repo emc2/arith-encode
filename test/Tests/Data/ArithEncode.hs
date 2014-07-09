@@ -599,6 +599,67 @@ eitherTests =
                                           map Right nonvals)
     ]
 
+finitePairTests =
+  let
+    iso = pair (fromHashableList ['A', 'B', 'C'])
+               (fromHashableList ['D', 'E', 'F', 'G'])
+    vals = [('A', 'D'), ('A', 'E'), ('A', 'F'), ('A', 'G'),
+            ('B', 'D'), ('B', 'E'), ('B', 'F'), ('B', 'G'),
+            ('C', 'D'), ('C', 'E'), ('C', 'F'), ('C', 'G')]
+    nonvals = [('F', 'D'), ('A', 'A'), ('H', 'D'), ('A', 'H'), ('H', 'I')]
+    isosize = toInteger (length vals)
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "pair"]
+                   (testEncodingVals iso vals),
+      testNameTags "size" ["size", "pair"]
+                   (size iso @?= Just isosize),
+      testNameTags "bounds_low" ["bounds", "pair"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "bounds_high" ["bounds", "pair"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso 12)),
+      testNameTags "inDomain" ["inDomain", "pair"] (testInDomain iso vals),
+      testNameTags "not_inDomain" ["inDomain", "pair"]
+                   (testNotInDomain iso nonvals),
+      testNameTags "depth" ["depth", "pair"]
+                   (mapM_ (\val -> depth iso ((), ()) val @?= 0) vals),
+      testNameTags "maxDepth" ["maxDepth", "pair"]
+                   (maxDepth iso ((), ()) @?= Just 0),
+      testNameTags "highestIndex" ["highestIndex", "pair"]
+                   (highestIndex iso ((), ()) 0 @?= Just isosize)
+    ]
+
+infinitePairTests iso1 iso2 limit =
+  let
+    iso = pair iso1 iso2
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "pair"]
+                   (testIsomorphism iso limit),
+      testNameTags "bounds_low" ["bounds", "pair"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "size" ["size", "pair"] (size iso @?= Nothing),
+      testNameTags "inDomain" ["inDomain", "pair"]
+                   (testInDomain iso (map (decode iso) [0..limit])),
+      testNameTags "depth" ["depth", "pair"]
+                   (mapM_ (\n -> depth iso ((), ()) (decode iso n) @?= 0)
+                          [0..limit]),
+      testNameTags "maxDepth" ["maxDepth", "pair"]
+                   (maxDepth iso ((), ()) @?= Just 0),
+      testNameTags "highestIndex" ["highestIndex", "pair"]
+                   (highestIndex iso ((), ()) 0 @?= Nothing)
+    ]
+
+pairTests =
+  let
+    finite = fromHashableList ['D', 'E', 'F', 'G']
+  in
+    [ "infinite_infinite" ~: infinitePairTests integralInteger integralInteger 100,
+      "finite_infinite" ~: infinitePairTests finite integralInteger 100,
+      "infinite_finite" ~: infinitePairTests integralInteger finite 100,
+      "finite_finite" ~: finitePairTests ]
+
 data Variant a b c d = First a | Second b | Third c | Fourth d
   deriving (Show, Eq, Ord)
 
@@ -1016,6 +1077,7 @@ testlist = [
                               ['A', 'B', 'C', 'D', 'E'] ['F', 'G'],
     "exclude" ~: excludeTests,
     "either" ~: eitherTests,
+    "pair" ~: pairTests,
     "union" ~: unionTests,
     "set" ~: setTests,
     "hashSet" ~: hashSetTests,
