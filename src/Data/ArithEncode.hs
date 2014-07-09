@@ -110,7 +110,6 @@ module Data.ArithEncode(
        either,
        union,
        pair,
-       {-
        triple,
        quad,
        quint,
@@ -118,8 +117,7 @@ module Data.ArithEncode(
        septet,
        octet,
        nonet,
-       decet,
--}
+       dectet,
        SetDim(..),
        set,
        hashSet,
@@ -966,24 +964,254 @@ pair Encoding { encEncode = encode1, encDecode = decode1,
                encSize = sizeval, encInDomain = indomainfunc,
                encDepth = depthfunc, encMaxDepth = maxdepthfunc,
                encHighestIndex = highindexfunc }
-{-
--- | An alias for @product3@.
+
+-- | Construct an encoding for a 3-tuple from the encodings for the
+-- three components.  This is actually just a wrapper around @pair@.
 triple :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
           Encoding (dim1, dim2, dim3) (ty1, ty2, ty3)
---triple a b c = pair (pair a b) c
+triple enc1 enc2 enc3 =
+  let
+    fwdshuffle (val1, val2, val3) = ((val1, val2), val3)
+    revshuffle ((val1, val2), val3) = (val1, val2, val3)
 
--- | An alias for @product4@.
+    Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encSize = sizeval, encInDomain = indomainfunc,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+               encHighestIndex = highindexfunc } =
+      pair (pair enc1 enc2) enc3
+
+    newencode = encodefunc . fwdshuffle
+    newdecode = revshuffle . decodefunc
+    newindomain = indomainfunc . fwdshuffle
+    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
+    newmaxdepth = maxdepthfunc . fwdshuffle
+    newhighindex dim = highindexfunc (fwdshuffle dim)
+  in
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = sizeval, encInDomain = newindomain,
+               encDepth = newdepth, encMaxDepth = newmaxdepth,
+               encHighestIndex = newhighindex }
+
+-- | Construct an encoding for a 4-tuple from the encodings for the
+-- four components.  This is actually just a wrapper around @pair@.
 quad :: Encoding dim1 ty1 -> Encoding dim2 ty2 ->
         Encoding dim3 ty3 -> Encoding dim4 ty4 ->
         Encoding (dim1, dim2, dim3, dim4) (ty1, ty2, ty3, ty4)
---quad a b c d = pair (pair a b) (pair c d)
+quad enc1 enc2 enc3 enc4 =
+  let
+    fwdshuffle (val1, val2, val3, val4) = ((val1, val2), (val3, val4))
+    revshuffle ((val1, val2), (val3, val4)) = (val1, val2, val3, val4)
 
--- | An alias for @product5@
+    Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encSize = sizeval, encInDomain = indomainfunc,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+               encHighestIndex = highindexfunc } =
+      pair (pair enc1 enc2) (pair enc3 enc4)
+
+    newencode = encodefunc . fwdshuffle
+    newdecode = revshuffle . decodefunc
+    newindomain = indomainfunc . fwdshuffle
+    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
+    newmaxdepth = maxdepthfunc . fwdshuffle
+    newhighindex dim = highindexfunc (fwdshuffle dim)
+  in
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = sizeval, encInDomain = newindomain,
+               encDepth = newdepth, encMaxDepth = newmaxdepth,
+               encHighestIndex = newhighindex }
+
+-- | Construct an encoding for a 5-tuple from the encodings for the
+-- five components.  This is actually just a wrapper around @pair@.
 quint :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
          Encoding dim4 ty4 -> Encoding dim5 ty5 ->
          Encoding (dim1, dim2, dim3, dim4, dim5) (ty1, ty2, ty3, ty4, ty5)
---quint a b c d e = pair (pair a b) (triple c d e)
--}
+quint enc1 enc2 enc3 enc4 enc5 =
+  let
+    fwdshuffle (val1, val2, val3, val4, val5) = (((val1, val2), val3), (val4, val5))
+    revshuffle (((val1, val2), val3), (val4, val5)) = (val1, val2, val3, val4, val5)
+
+    Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encSize = sizeval, encInDomain = indomainfunc,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+               encHighestIndex = highindexfunc } =
+      pair (pair (pair enc1 enc2) enc3) (pair enc4 enc5)
+
+    newencode = encodefunc . fwdshuffle
+    newdecode = revshuffle . decodefunc
+    newindomain = indomainfunc . fwdshuffle
+    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
+    newmaxdepth = maxdepthfunc . fwdshuffle
+    newhighindex dim = highindexfunc (fwdshuffle dim)
+  in
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = sizeval, encInDomain = newindomain,
+               encDepth = newdepth, encMaxDepth = newmaxdepth,
+               encHighestIndex = newhighindex }
+
+-- | Construct an encoding for a 6-tuple from the encodings for the
+-- six components.  This is actually just a wrapper around @pair@.
+sextet :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
+          Encoding dim4 ty4 -> Encoding dim5 ty5 -> Encoding dim6 ty6 ->
+          Encoding (dim1, dim2, dim3, dim4, dim5, dim6)
+                   (ty1, ty2, ty3, ty4, ty5, ty6)
+sextet enc1 enc2 enc3 enc4 enc5 enc6 =
+  let
+    fwdshuffle (val1, val2, val3, val4, val5, val6) =
+      (((val1, val2), val3), ((val4, val5), val6))
+    revshuffle (((val1, val2), val3), ((val4, val5), val6)) =
+      (val1, val2, val3, val4, val5, val6)
+
+    Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encSize = sizeval, encInDomain = indomainfunc,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+               encHighestIndex = highindexfunc } =
+      pair (pair (pair enc1 enc2) enc3) (pair (pair enc4 enc5) enc6)
+
+    newencode = encodefunc . fwdshuffle
+    newdecode = revshuffle . decodefunc
+    newindomain = indomainfunc . fwdshuffle
+    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
+    newmaxdepth = maxdepthfunc . fwdshuffle
+    newhighindex dim = highindexfunc (fwdshuffle dim)
+  in
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = sizeval, encInDomain = newindomain,
+               encDepth = newdepth, encMaxDepth = newmaxdepth,
+               encHighestIndex = newhighindex }
+
+-- | Construct an encoding for a 7-tuple from the encodings for the
+-- seven components.  This is actually just a wrapper around @pair@.
+septet :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
+          Encoding dim4 ty4 -> Encoding dim5 ty5 ->
+          Encoding dim6 ty6 -> Encoding dim7 ty7 ->
+          Encoding (dim1, dim2, dim3, dim4, dim5, dim6, dim7)
+                   (ty1, ty2, ty3, ty4, ty5, ty6, ty7)
+septet enc1 enc2 enc3 enc4 enc5 enc6 enc7 =
+  let
+    fwdshuffle (val1, val2, val3, val4, val5, val6, val7) =
+      (((val1, val2), (val3, val4)), ((val5, val6), val7))
+    revshuffle (((val1, val2), (val3, val4)), ((val5, val6), val7)) =
+      (val1, val2, val3, val4, val5, val6, val7)
+
+    Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encSize = sizeval, encInDomain = indomainfunc,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+               encHighestIndex = highindexfunc } =
+      pair (pair (pair enc1 enc2) (pair enc3 enc4)) (pair (pair enc5 enc6) enc7)
+
+    newencode = encodefunc . fwdshuffle
+    newdecode = revshuffle . decodefunc
+    newindomain = indomainfunc . fwdshuffle
+    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
+    newmaxdepth = maxdepthfunc . fwdshuffle
+    newhighindex dim = highindexfunc (fwdshuffle dim)
+  in
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = sizeval, encInDomain = newindomain,
+               encDepth = newdepth, encMaxDepth = newmaxdepth,
+               encHighestIndex = newhighindex }
+
+-- | Construct an encoding for an 8-tuple from the encodings for the
+-- eight components.  This is actually just a wrapper around @pair@.
+octet :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
+         Encoding dim4 ty4 -> Encoding dim5 ty5 -> Encoding dim6 ty6 ->
+         Encoding dim7 ty7 -> Encoding dim8 ty8 ->
+         Encoding (dim1, dim2, dim3, dim4, dim5, dim6, dim7, dim8)
+                  (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8)
+octet enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 =
+  let
+    fwdshuffle (val1, val2, val3, val4, val5, val6, val7, val8) =
+      (((val1, val2), (val3, val4)), ((val5, val6), (val7, val8)))
+    revshuffle (((val1, val2), (val3, val4)), ((val5, val6), (val7, val8))) =
+      (val1, val2, val3, val4, val5, val6, val7, val8)
+
+    Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encSize = sizeval, encInDomain = indomainfunc,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+               encHighestIndex = highindexfunc } =
+      pair (pair (pair enc1 enc2) (pair enc3 enc4))
+           (pair (pair enc5 enc6) (pair enc7 enc8))
+
+    newencode = encodefunc . fwdshuffle
+    newdecode = revshuffle . decodefunc
+    newindomain = indomainfunc . fwdshuffle
+    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
+    newmaxdepth = maxdepthfunc . fwdshuffle
+    newhighindex dim = highindexfunc (fwdshuffle dim)
+  in
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = sizeval, encInDomain = newindomain,
+               encDepth = newdepth, encMaxDepth = newmaxdepth,
+               encHighestIndex = newhighindex }
+
+-- | Construct an encoding for a 9-tuple from the encodings for the
+-- nine components.  This is actually just a wrapper around @pair@.
+nonet :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
+         Encoding dim4 ty4 -> Encoding dim5 ty5 -> Encoding dim6 ty6 ->
+         Encoding dim7 ty7 -> Encoding dim8 ty8 -> Encoding dim9 ty9 ->
+         Encoding (dim1, dim2, dim3, dim4, dim5, dim6, dim7, dim8, dim9)
+                  (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8, ty9)
+nonet enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 enc9 =
+  let
+    fwdshuffle (val1, val2, val3, val4, val5, val6, val7, val8, val9) =
+      ((((val1, val2), val3), (val4, val5)), ((val6, val7), (val8, val9)))
+    revshuffle ((((val1, val2), val3), (val4, val5)), ((val6, val7), (val8, val9))) =
+      (val1, val2, val3, val4, val5, val6, val7, val8, val9)
+
+    Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encSize = sizeval, encInDomain = indomainfunc,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+               encHighestIndex = highindexfunc } =
+      pair (pair (pair (pair enc1 enc2) enc3) (pair enc4 enc5))
+           (pair (pair enc6 enc7) (pair enc8 enc9))
+
+    newencode = encodefunc . fwdshuffle
+    newdecode = revshuffle . decodefunc
+    newindomain = indomainfunc . fwdshuffle
+    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
+    newmaxdepth = maxdepthfunc . fwdshuffle
+    newhighindex dim = highindexfunc (fwdshuffle dim)
+  in
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = sizeval, encInDomain = newindomain,
+               encDepth = newdepth, encMaxDepth = newmaxdepth,
+               encHighestIndex = newhighindex }
+
+-- | Construct an encoding for a 10-tuple from the encodings for the
+-- ten components.  This is actually just a wrapper around @pair@.
+dectet :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
+          Encoding dim4 ty4 -> Encoding dim5 ty5 -> Encoding dim6 ty6 ->
+          Encoding dim7 ty7 -> Encoding dim8 ty8 ->
+          Encoding dim9 ty9 -> Encoding dim10 ty10 ->
+          Encoding (dim1, dim2, dim3, dim4, dim5, dim6, dim7, dim8, dim9, dim10)
+                   (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8, ty9, ty10)
+dectet enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 enc9 enc10 =
+  let
+    fwdshuffle (val1, val2, val3, val4, val5, val6, val7, val8, val9, val10) =
+      ((((val1, val2), val3), (val4, val5)), (((val6, val7), val8), (val9, val10)))
+    revshuffle ((((val1, val2), val3), (val4, val5)),
+                (((val6, val7), val8), (val9, val10))) =
+      (val1, val2, val3, val4, val5, val6, val7, val8, val9, val10)
+
+    Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encSize = sizeval, encInDomain = indomainfunc,
+               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+               encHighestIndex = highindexfunc } =
+      pair (pair (pair (pair enc1 enc2) enc3) (pair enc4 enc5))
+           (pair (pair (pair enc6 enc7) enc8) (pair enc9 enc10))
+
+    newencode = encodefunc . fwdshuffle
+    newdecode = revshuffle . decodefunc
+    newindomain = indomainfunc . fwdshuffle
+    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
+    newmaxdepth = maxdepthfunc . fwdshuffle
+    newhighindex dim = highindexfunc (fwdshuffle dim)
+  in
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = sizeval, encInDomain = newindomain,
+               encDepth = newdepth, encMaxDepth = newmaxdepth,
+               encHighestIndex = newhighindex }
+
 -- | A datatype representing the dimensions of a set.
 data SetDim dim =
     -- | A dimension representing the size of the set.
