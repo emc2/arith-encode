@@ -38,6 +38,7 @@ import Data.Hashable
 import Data.Int
 import Data.List hiding (union)
 import Data.Maybe
+import Data.Tree
 import Data.Word
 import Data.Set(Set)
 import Prelude hiding (either, union, seq)
@@ -1042,6 +1043,46 @@ seqTests = [
     "infinite" ~: infiniteSeqTests
   ]
 
+instance Hashable ty => Hashable (Tree ty) where
+  hashWithSalt s Node { rootLabel = label, subForest = children } =
+    s `hashWithSalt` label `hashWithSalt` children
+
+instance Ord ty => Ord (Tree ty) where
+  compare Node { rootLabel = label1, subForest = children1 }
+          Node { rootLabel = label2, subForest = children2 } =
+    case compare label1 label2 of
+      EQ -> compare children1 children2
+      out -> out
+
+treeEncoding =
+  let
+    makeNode (label, children) =
+      Node { rootLabel = label, subForest = children }
+
+    unmakeNode Node { rootLabel = label, subForest = children } =
+      Just (label, children)
+
+    wrappedInteger = wrapDim (\(SeqElem dim) -> dim) integralInteger
+
+    nodeEncoding nodeenc =
+      wrap unmakeNode makeNode (pair' wrappedInteger (seq' nodeenc))
+  in
+    recursive nodeEncoding
+
+treeEncodingTests =
+  let
+    iso = treeEncoding
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "recursive"]
+                   (testIsomorphism iso 10000),
+      testNameTags "bounds_low" ["bounds", "recursive"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "size" ["size", "recursive"] (size iso @?= Nothing),
+      testNameTags "inDomain" ["inDomain", "recursive"]
+                   (testInDomain iso (map (decode iso) [0..10000]))
+    ]
+
 testlist :: [Test]
 testlist = [
     "identity" ~: testInfDimlessEncoding ["Integer"] identity,
@@ -1081,7 +1122,8 @@ testlist = [
     "union" ~: unionTests,
     "set" ~: setTests,
     "hashSet" ~: hashSetTests,
-    "seq" ~: seqTests
+    "seq" ~: seqTests,
+    "recursive" ~: treeEncodingTests
   ]
 
 tests :: Test

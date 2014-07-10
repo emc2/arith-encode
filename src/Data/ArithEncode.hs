@@ -177,7 +177,6 @@ import Data.List hiding (elem, union)
 import Data.Maybe
 import Data.Set(Set)
 import Data.Typeable
---import Debug.Trace
 import Prelude hiding (elem, either, seq)
 
 import qualified Data.Array.IArray as Array
@@ -2042,48 +2041,51 @@ data RecurseDim dim =
     RecurseDepth
   | RecurseElem dim
 
-recursive :: (Encoding dim ty -> Encoding dim ty)
+recursive :: Show ty => (Encoding dim ty -> Encoding dim ty)
           -- ^ A function that, given a self-reference, instances,
           -- constructs an encoding.
-          -> (ty -> Bool)
-          -- ^ A function that indicates whether or not an
-          -> Encoding (RecurseDim dim) ty
-recursive genfunc infinaldomain =
+          -> Encoding dim ty
+recursive genfunc =
   let
-    baseenc @ Encoding { encMaxDepth = maxdepthfunc } = genfunc void
-
-    recEncode enc @ Encoding { encInDomain = indomainfunc, encEncode = encodefunc }
-              val
-      | indomainfunc val = encodefunc val
-      | otherwise = recEncode (genfunc enc) val
-
-    recDecode enc @ Encoding { encSize = Just sizeval, encDecode = decodefunc } num
-      | num < sizeval = decodefunc num
-      | otherwise = recDecode (genfunc enc) num
-    recDecode Encoding { encSize = Nothing, encDecode = decodefunc } num =
-      decodefunc num
-
-    recDepth enc @ Encoding { encInDomain = indomainfunc,
-                              encDepth = depthfunc }
-             rdim @ (RecurseElem dim) val
-      | indomainfunc val = depthfunc dim val
-      | otherwise = recDepth (genfunc enc) rdim val
-    recDepth enc' RecurseDepth val =
+    newMaxDepth =
       let
-        findDepth enc @ Encoding { encInDomain = indomainfunc } n
-          | indomainfunc val = n
-          | otherwise = findDepth (genfunc enc) (n + 1)
+        Encoding { encMaxDepth = maxdepthfunc } = genfunc void
       in
-        findDepth enc' 0
+        maxdepthfunc
 
-    newMaxDepth RecurseDepth = Nothing
-    newMaxDepth (RecurseElem dim) = maxdepthfunc dim
+    self =
+      let
+        recDecode num =
+          let
+            Encoding { encDecode = decodefunc } = genfunc self
+          in
+            decodefunc num
+
+        recEncode val =
+          let
+            Encoding { encEncode = encodefunc } = genfunc self
+          in
+            encodefunc val
+
+
+        recDepth dim val =
+          let
+            Encoding { encDepth = depthfunc } = genfunc self
+          in
+            depthfunc dim val
+
+        recInDomain val =
+          let
+            Encoding { encInDomain = indomainfunc } = genfunc self
+          in
+            indomainfunc val
+      in
+        Encoding { encEncode = recEncode, encDecode = recDecode,
+                   encSize = Nothing, encInDomain = recInDomain,
+                   encDepth = recDepth, encMaxDepth = newMaxDepth,
+                   encHighestIndex = const (const Nothing) }
   in
-    Encoding { encEncode = recEncode baseenc, encDecode = recDecode baseenc,
-               encSize = Nothing, encInDomain = infinaldomain,
-               encDepth = recDepth baseenc, encMaxDepth = newMaxDepth,
-               encHighestIndex = const (const Nothing) }
-
+    self
 
 -- THIS CODE IS FROM HASKELLWIKI, AND THEREFORE NOT SUBJECT TO THE
 -- COPYRIGHT CLAIM AT THE TOP OF THIS FILE
