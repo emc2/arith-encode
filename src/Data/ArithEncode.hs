@@ -154,7 +154,6 @@ module Data.ArithEncode(
 
        -- *** Recursive
        recursive,
-{-
        recursive2,
        recursive3,
        recursive4,
@@ -164,7 +163,6 @@ module Data.ArithEncode(
        recursive8,
        recursive9,
        recursive10
-       -}
        ) where
 
 import Control.Exception
@@ -2053,72 +2051,782 @@ recursive genfunc =
                      encHighestIndex = const (const Nothing) }
   in
     enc
-{-
--- | 
+
+-- | A recursive construction for two mutually-recursive constructions.
 recursive2 :: ((Encoding dim ty1, Encoding dim ty2) -> Encoding dim ty1)
            -- ^ A function that, given self-references to both encodings,
            -- constructs the first encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2) -> Encoding dim ty1)
+           -> ((Encoding dim ty1, Encoding dim ty2) -> Encoding dim ty2)
            -- ^ A function that, given self-references to both encodings,
            -- constructs the second encoding.
-           -> Encoding dim ty
+           -> (Encoding dim ty1, Encoding dim ty2)
 recursive2 genfunc1 genfunc2 =
   let
-    newMaxDepth1 =
-      let
-        Encoding { encMaxDepth = maxdepthfunc } = genfunc1 void
-      in
-        maxdepthfunc
-
-    newMaxDepth2 =
-      let
-        Encoding { encMaxDepth = maxdepthfunc } = genfunc2 void
-      in
-        maxdepthfunc
-
-    (enc1, enc2) =
-      let
-        recDecode1 num =
-          let
-            Encoding { encDecode = decodefunc } = genfunc enc1
-          in
-            decodefunc num
-
-        recEncode1 val =
-          let
-            Encoding { encEncode = encodefunc } = genfunc enc1
-          in
-            encodefunc val
-
-        recDepth1 dim val =
-          let
-            Encoding { encDepth = depthfunc } = genfunc enc1
-          in
-            depthfunc dim val
-
-        recInDomain1 val =
-          let
-            Encoding { encInDomain = indomainfunc } = genfunc enc1
-          in
-            indomainfunc val
-
-        recDecode2 num =
-          let
-            Encoding { encDecode = decodefunc } = genfunc enc2
-          in
-            decodefunc num
-      in
-        (Encoding { encEncode = recEncode1, encDecode = recDecode1,
-                    encSize = Nothing, encInDomain = recInDomain1,
-                    encDepth = recDepth1, encMaxDepth = newMaxDepth1,
-                    encHighestIndex = const (const Nothing) },
-         Encoding { encEncode = recEncode2, encDecode = recDecode2,
-                    encSize = Nothing, encInDomain = recInDomain2,
-                    encDepth = recDepth2, encMaxDepth = newMaxDepth2,
-                    encHighestIndex = const (const Nothing) })
+    encs =
+      (Encoding { encEncode = encode (genfunc1 encs),
+                  encDecode = decode (genfunc1 encs),
+                  encInDomain = inDomain (genfunc1 encs),
+                  encDepth = depth (genfunc1 encs),
+                  encMaxDepth = maxDepth (genfunc1 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc2 encs),
+                  encDecode = decode (genfunc2 encs),
+                  encInDomain = inDomain (genfunc2 encs),
+                  encDepth = depth (genfunc2 encs),
+                  encMaxDepth = maxDepth (genfunc2 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) })
   in
-    enc
--}
+    encs
+
+-- | A recursive construction for three mutually-recursive constructions.
+recursive3 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3) ->
+               Encoding dim ty1)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the first encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3) ->
+               Encoding dim ty2)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the second encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3) ->
+               Encoding dim ty3)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the third encoding.
+           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3)
+recursive3 genfunc1 genfunc2 genfunc3 =
+  let
+    encs =
+      (Encoding { encEncode = encode (genfunc1 encs),
+                  encDecode = decode (genfunc1 encs),
+                  encInDomain = inDomain (genfunc1 encs),
+                  encDepth = depth (genfunc1 encs),
+                  encMaxDepth = maxDepth (genfunc1 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc2 encs),
+                  encDecode = decode (genfunc2 encs),
+                  encInDomain = inDomain (genfunc2 encs),
+                  encDepth = depth (genfunc2 encs),
+                  encMaxDepth = maxDepth (genfunc2 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc3 encs),
+                  encDecode = decode (genfunc3 encs),
+                  encInDomain = inDomain (genfunc3 encs),
+                  encDepth = depth (genfunc3 encs),
+                  encMaxDepth = maxDepth (genfunc3 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) })
+  in
+    encs
+
+-- | A recursive construction for four mutually-recursive constructions.
+recursive4 :: ((Encoding dim ty1, Encoding dim ty2,
+                Encoding dim ty3, Encoding dim ty4) ->
+               Encoding dim ty1)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the first encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2,
+                Encoding dim ty3, Encoding dim ty4) ->
+               Encoding dim ty2)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the second encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2,
+                Encoding dim ty3, Encoding dim ty4) ->
+               Encoding dim ty3)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the third encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2,
+                Encoding dim ty3, Encoding dim ty4) ->
+               Encoding dim ty4)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the fourth encoding.
+           -> (Encoding dim ty1, Encoding dim ty2,
+               Encoding dim ty3, Encoding dim ty4)
+recursive4 genfunc1 genfunc2 genfunc3 genfunc4 =
+  let
+    encs =
+      (Encoding { encEncode = encode (genfunc1 encs),
+                  encDecode = decode (genfunc1 encs),
+                  encInDomain = inDomain (genfunc1 encs),
+                  encDepth = depth (genfunc1 encs),
+                  encMaxDepth = maxDepth (genfunc1 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc2 encs),
+                  encDecode = decode (genfunc2 encs),
+                  encInDomain = inDomain (genfunc2 encs),
+                  encDepth = depth (genfunc2 encs),
+                  encMaxDepth = maxDepth (genfunc2 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc3 encs),
+                  encDecode = decode (genfunc3 encs),
+                  encInDomain = inDomain (genfunc3 encs),
+                  encDepth = depth (genfunc3 encs),
+                  encMaxDepth = maxDepth (genfunc3 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc4 encs),
+                  encDecode = decode (genfunc4 encs),
+                  encInDomain = inDomain (genfunc4 encs),
+                  encDepth = depth (genfunc4 encs),
+                  encMaxDepth = maxDepth (genfunc4 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) })
+  in
+    encs
+
+-- | A recursive construction for five mutually-recursive constructions.
+recursive5 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5) ->
+               Encoding dim ty1)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the first encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5) ->
+               Encoding dim ty2)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the second encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5) ->
+               Encoding dim ty3)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the third encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5) ->
+               Encoding dim ty4)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the fourth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5) ->
+               Encoding dim ty5)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the fifth encoding.
+           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+               Encoding dim ty4, Encoding dim ty5)
+recursive5 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5 =
+  let
+    encs =
+      (Encoding { encEncode = encode (genfunc1 encs),
+                  encDecode = decode (genfunc1 encs),
+                  encInDomain = inDomain (genfunc1 encs),
+                  encDepth = depth (genfunc1 encs),
+                  encMaxDepth = maxDepth (genfunc1 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc2 encs),
+                  encDecode = decode (genfunc2 encs),
+                  encInDomain = inDomain (genfunc2 encs),
+                  encDepth = depth (genfunc2 encs),
+                  encMaxDepth = maxDepth (genfunc2 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc3 encs),
+                  encDecode = decode (genfunc3 encs),
+                  encInDomain = inDomain (genfunc3 encs),
+                  encDepth = depth (genfunc3 encs),
+                  encMaxDepth = maxDepth (genfunc3 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc4 encs),
+                  encDecode = decode (genfunc4 encs),
+                  encInDomain = inDomain (genfunc4 encs),
+                  encDepth = depth (genfunc4 encs),
+                  encMaxDepth = maxDepth (genfunc4 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc5 encs),
+                  encDecode = decode (genfunc5 encs),
+                  encInDomain = inDomain (genfunc5 encs),
+                  encDepth = depth (genfunc5 encs),
+                  encMaxDepth = maxDepth (genfunc5 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) })
+
+  in
+    encs
+
+-- | A recursive construction for six mutually-recursive constructions.
+recursive6 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
+               Encoding dim ty1)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the first encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
+               Encoding dim ty2)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the second encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
+               Encoding dim ty3)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the third encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
+               Encoding dim ty4)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the fourth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
+               Encoding dim ty5)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the fifth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
+               Encoding dim ty6)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the sixth encoding.
+           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+               Encoding dim ty4, Encoding dim ty5, Encoding dim ty6)
+recursive6 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5 genfunc6 =
+  let
+    encs =
+      (Encoding { encEncode = encode (genfunc1 encs),
+                  encDecode = decode (genfunc1 encs),
+                  encInDomain = inDomain (genfunc1 encs),
+                  encDepth = depth (genfunc1 encs),
+                  encMaxDepth = maxDepth (genfunc1 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc2 encs),
+                  encDecode = decode (genfunc2 encs),
+                  encInDomain = inDomain (genfunc2 encs),
+                  encDepth = depth (genfunc2 encs),
+                  encMaxDepth = maxDepth (genfunc2 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc3 encs),
+                  encDecode = decode (genfunc3 encs),
+                  encInDomain = inDomain (genfunc3 encs),
+                  encDepth = depth (genfunc3 encs),
+                  encMaxDepth = maxDepth (genfunc3 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc4 encs),
+                  encDecode = decode (genfunc4 encs),
+                  encInDomain = inDomain (genfunc4 encs),
+                  encDepth = depth (genfunc4 encs),
+                  encMaxDepth = maxDepth (genfunc4 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc5 encs),
+                  encDecode = decode (genfunc5 encs),
+                  encInDomain = inDomain (genfunc5 encs),
+                  encDepth = depth (genfunc5 encs),
+                  encMaxDepth = maxDepth (genfunc5 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc6 encs),
+                  encDecode = decode (genfunc6 encs),
+                  encInDomain = inDomain (genfunc6 encs),
+                  encDepth = depth (genfunc6 encs),
+                  encMaxDepth = maxDepth (genfunc6 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) })
+
+  in
+    encs
+
+-- | A recursive construction for seven mutually-recursive constructions.
+recursive7 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5,
+                Encoding dim ty6, Encoding dim ty7) ->
+               Encoding dim ty1)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the first encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5,
+                Encoding dim ty6, Encoding dim ty7) ->
+               Encoding dim ty2)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the second encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5,
+                Encoding dim ty6, Encoding dim ty7) ->
+               Encoding dim ty3)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the third encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5,
+                Encoding dim ty6, Encoding dim ty7) ->
+               Encoding dim ty4)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the fourth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5,
+                Encoding dim ty6, Encoding dim ty7) ->
+               Encoding dim ty5)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the fifth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5,
+                Encoding dim ty6, Encoding dim ty7) ->
+               Encoding dim ty6)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the sixth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5,
+                Encoding dim ty6, Encoding dim ty7) ->
+               Encoding dim ty7)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the seventh encoding.
+           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+               Encoding dim ty4, Encoding dim ty5,
+               Encoding dim ty6, Encoding dim ty7)
+recursive7 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5 genfunc6 genfunc7 =
+  let
+    encs =
+      (Encoding { encEncode = encode (genfunc1 encs),
+                  encDecode = decode (genfunc1 encs),
+                  encInDomain = inDomain (genfunc1 encs),
+                  encDepth = depth (genfunc1 encs),
+                  encMaxDepth = maxDepth (genfunc1 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc2 encs),
+                  encDecode = decode (genfunc2 encs),
+                  encInDomain = inDomain (genfunc2 encs),
+                  encDepth = depth (genfunc2 encs),
+                  encMaxDepth = maxDepth (genfunc2 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc3 encs),
+                  encDecode = decode (genfunc3 encs),
+                  encInDomain = inDomain (genfunc3 encs),
+                  encDepth = depth (genfunc3 encs),
+                  encMaxDepth = maxDepth (genfunc3 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc4 encs),
+                  encDecode = decode (genfunc4 encs),
+                  encInDomain = inDomain (genfunc4 encs),
+                  encDepth = depth (genfunc4 encs),
+                  encMaxDepth = maxDepth (genfunc4 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc5 encs),
+                  encDecode = decode (genfunc5 encs),
+                  encInDomain = inDomain (genfunc5 encs),
+                  encDepth = depth (genfunc5 encs),
+                  encMaxDepth = maxDepth (genfunc5 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc6 encs),
+                  encDecode = decode (genfunc6 encs),
+                  encInDomain = inDomain (genfunc6 encs),
+                  encDepth = depth (genfunc6 encs),
+                  encMaxDepth = maxDepth (genfunc6 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc7 encs),
+                  encDecode = decode (genfunc7 encs),
+                  encInDomain = inDomain (genfunc7 encs),
+                  encDepth = depth (genfunc7 encs),
+                  encMaxDepth = maxDepth (genfunc7 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) })
+
+  in
+    encs
+
+-- | A recursive construction for eight mutually-recursive constructions.
+recursive8 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8) ->
+               Encoding dim ty1)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the first encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8) ->
+               Encoding dim ty2)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the second encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8) ->
+               Encoding dim ty3)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the third encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8) ->
+               Encoding dim ty4)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the fourth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8) ->
+               Encoding dim ty5)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the fifth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8) ->
+               Encoding dim ty6)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the sixth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8) ->
+               Encoding dim ty7)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the seventh encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8) ->
+               Encoding dim ty8)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the eighth encoding.
+           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+               Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+               Encoding dim ty7, Encoding dim ty8)
+recursive8 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5 genfunc6 genfunc7 genfunc8 =
+  let
+    encs =
+      (Encoding { encEncode = encode (genfunc1 encs),
+                  encDecode = decode (genfunc1 encs),
+                  encInDomain = inDomain (genfunc1 encs),
+                  encDepth = depth (genfunc1 encs),
+                  encMaxDepth = maxDepth (genfunc1 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc2 encs),
+                  encDecode = decode (genfunc2 encs),
+                  encInDomain = inDomain (genfunc2 encs),
+                  encDepth = depth (genfunc2 encs),
+                  encMaxDepth = maxDepth (genfunc2 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc3 encs),
+                  encDecode = decode (genfunc3 encs),
+                  encInDomain = inDomain (genfunc3 encs),
+                  encDepth = depth (genfunc3 encs),
+                  encMaxDepth = maxDepth (genfunc3 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc4 encs),
+                  encDecode = decode (genfunc4 encs),
+                  encInDomain = inDomain (genfunc4 encs),
+                  encDepth = depth (genfunc4 encs),
+                  encMaxDepth = maxDepth (genfunc4 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc5 encs),
+                  encDecode = decode (genfunc5 encs),
+                  encInDomain = inDomain (genfunc5 encs),
+                  encDepth = depth (genfunc5 encs),
+                  encMaxDepth = maxDepth (genfunc5 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc6 encs),
+                  encDecode = decode (genfunc6 encs),
+                  encInDomain = inDomain (genfunc6 encs),
+                  encDepth = depth (genfunc6 encs),
+                  encMaxDepth = maxDepth (genfunc6 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc7 encs),
+                  encDecode = decode (genfunc7 encs),
+                  encInDomain = inDomain (genfunc7 encs),
+                  encDepth = depth (genfunc7 encs),
+                  encMaxDepth = maxDepth (genfunc7 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc8 encs),
+                  encDecode = decode (genfunc8 encs),
+                  encInDomain = inDomain (genfunc8 encs),
+                  encDepth = depth (genfunc8 encs),
+                  encMaxDepth = maxDepth (genfunc8 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) })
+
+  in
+    encs
+
+-- | A recursive construction for nine mutually-recursive constructions.
+recursive9 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
+               Encoding dim ty1)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the first encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
+               Encoding dim ty2)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the second encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
+               Encoding dim ty3)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the third encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
+               Encoding dim ty4)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the fourth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
+               Encoding dim ty5)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the fifth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
+               Encoding dim ty6)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the sixth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
+               Encoding dim ty7)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the seventh encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
+               Encoding dim ty8)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the eighth encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
+               Encoding dim ty9)
+           -- ^ A function that, given self-references to all encodings,
+           -- constructs the ninth encoding.
+           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+               Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+               Encoding dim ty7, Encoding dim ty8, Encoding dim ty9)
+recursive9 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5
+           genfunc6 genfunc7 genfunc8 genfunc9 =
+  let
+    encs =
+      (Encoding { encEncode = encode (genfunc1 encs),
+                  encDecode = decode (genfunc1 encs),
+                  encInDomain = inDomain (genfunc1 encs),
+                  encDepth = depth (genfunc1 encs),
+                  encMaxDepth = maxDepth (genfunc1 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc2 encs),
+                  encDecode = decode (genfunc2 encs),
+                  encInDomain = inDomain (genfunc2 encs),
+                  encDepth = depth (genfunc2 encs),
+                  encMaxDepth = maxDepth (genfunc2 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc3 encs),
+                  encDecode = decode (genfunc3 encs),
+                  encInDomain = inDomain (genfunc3 encs),
+                  encDepth = depth (genfunc3 encs),
+                  encMaxDepth = maxDepth (genfunc3 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc4 encs),
+                  encDecode = decode (genfunc4 encs),
+                  encInDomain = inDomain (genfunc4 encs),
+                  encDepth = depth (genfunc4 encs),
+                  encMaxDepth = maxDepth (genfunc4 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc5 encs),
+                  encDecode = decode (genfunc5 encs),
+                  encInDomain = inDomain (genfunc5 encs),
+                  encDepth = depth (genfunc5 encs),
+                  encMaxDepth = maxDepth (genfunc5 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc6 encs),
+                  encDecode = decode (genfunc6 encs),
+                  encInDomain = inDomain (genfunc6 encs),
+                  encDepth = depth (genfunc6 encs),
+                  encMaxDepth = maxDepth (genfunc6 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc7 encs),
+                  encDecode = decode (genfunc7 encs),
+                  encInDomain = inDomain (genfunc7 encs),
+                  encDepth = depth (genfunc7 encs),
+                  encMaxDepth = maxDepth (genfunc7 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc8 encs),
+                  encDecode = decode (genfunc8 encs),
+                  encInDomain = inDomain (genfunc8 encs),
+                  encDepth = depth (genfunc8 encs),
+                  encMaxDepth = maxDepth (genfunc8 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc9 encs),
+                  encDecode = decode (genfunc9 encs),
+                  encInDomain = inDomain (genfunc9 encs),
+                  encDepth = depth (genfunc9 encs),
+                  encMaxDepth = maxDepth (genfunc9 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) })
+  in
+    encs
+
+-- | A recursive construction for eight mutually-recursive constructions.
+recursive10 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                 Encoding dim ty7, Encoding dim ty8,
+                 Encoding dim ty9, Encoding dim ty10) ->
+                Encoding dim ty1)
+            -- ^ A function that, given self-references to all encodings,
+            -- constructs the first encoding.
+            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                 Encoding dim ty7, Encoding dim ty8,
+                 Encoding dim ty9, Encoding dim ty10) ->
+                Encoding dim ty2)
+            -- ^ A function that, given self-references to all encodings,
+            -- constructs the second encoding.
+            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                 Encoding dim ty7, Encoding dim ty8,
+                 Encoding dim ty9, Encoding dim ty10) ->
+                Encoding dim ty3)
+            -- ^ A function that, given self-references to all encodings,
+            -- constructs the third encoding.
+            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                 Encoding dim ty7, Encoding dim ty8,
+                 Encoding dim ty9, Encoding dim ty10) ->
+                Encoding dim ty4)
+            -- ^ A function that, given self-references to all encodings,
+            -- constructs the fourth encoding.
+            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                 Encoding dim ty7, Encoding dim ty8,
+                 Encoding dim ty9, Encoding dim ty10) ->
+                Encoding dim ty5)
+            -- ^ A function that, given self-references to all encodings,
+            -- constructs the fifth encoding.
+            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                 Encoding dim ty7, Encoding dim ty8,
+                 Encoding dim ty9, Encoding dim ty10) ->
+                Encoding dim ty6)
+            -- ^ A function that, given self-references to all encodings,
+            -- constructs the sixth encoding.
+            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                 Encoding dim ty7, Encoding dim ty8,
+                 Encoding dim ty9, Encoding dim ty10) ->
+                Encoding dim ty7)
+            -- ^ A function that, given self-references to all encodings,
+            -- constructs the seventh encoding.
+            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                 Encoding dim ty7, Encoding dim ty8,
+                 Encoding dim ty9, Encoding dim ty10) ->
+                Encoding dim ty8)
+            -- ^ A function that, given self-references to all encodings,
+            -- constructs the eighth encoding.
+            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                 Encoding dim ty7, Encoding dim ty8,
+                 Encoding dim ty9, Encoding dim ty10) ->
+                Encoding dim ty9)
+            -- ^ A function that, given self-references to all encodings,
+            -- constructs the ninth encoding.
+            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                 Encoding dim ty7, Encoding dim ty8,
+                 Encoding dim ty9, Encoding dim ty10) ->
+                Encoding dim ty10)
+            -- ^ A function that, given self-references to all encodings,
+            -- constructs the tenth encoding.
+            -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
+                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
+                Encoding dim ty7, Encoding dim ty8,
+                Encoding dim ty9, Encoding dim ty10)
+recursive10 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5
+            genfunc6 genfunc7 genfunc8 genfunc9 genfunc10 =
+  let
+    encs =
+      (Encoding { encEncode = encode (genfunc1 encs),
+                  encDecode = decode (genfunc1 encs),
+                  encInDomain = inDomain (genfunc1 encs),
+                  encDepth = depth (genfunc1 encs),
+                  encMaxDepth = maxDepth (genfunc1 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc2 encs),
+                  encDecode = decode (genfunc2 encs),
+                  encInDomain = inDomain (genfunc2 encs),
+                  encDepth = depth (genfunc2 encs),
+                  encMaxDepth = maxDepth (genfunc2 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc3 encs),
+                  encDecode = decode (genfunc3 encs),
+                  encInDomain = inDomain (genfunc3 encs),
+                  encDepth = depth (genfunc3 encs),
+                  encMaxDepth = maxDepth (genfunc3 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc4 encs),
+                  encDecode = decode (genfunc4 encs),
+                  encInDomain = inDomain (genfunc4 encs),
+                  encDepth = depth (genfunc4 encs),
+                  encMaxDepth = maxDepth (genfunc4 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc5 encs),
+                  encDecode = decode (genfunc5 encs),
+                  encInDomain = inDomain (genfunc5 encs),
+                  encDepth = depth (genfunc5 encs),
+                  encMaxDepth = maxDepth (genfunc5 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc6 encs),
+                  encDecode = decode (genfunc6 encs),
+                  encInDomain = inDomain (genfunc6 encs),
+                  encDepth = depth (genfunc6 encs),
+                  encMaxDepth = maxDepth (genfunc6 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc7 encs),
+                  encDecode = decode (genfunc7 encs),
+                  encInDomain = inDomain (genfunc7 encs),
+                  encDepth = depth (genfunc7 encs),
+                  encMaxDepth = maxDepth (genfunc7 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc8 encs),
+                  encDecode = decode (genfunc8 encs),
+                  encInDomain = inDomain (genfunc8 encs),
+                  encDepth = depth (genfunc8 encs),
+                  encMaxDepth = maxDepth (genfunc8 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc9 encs),
+                  encDecode = decode (genfunc9 encs),
+                  encInDomain = inDomain (genfunc9 encs),
+                  encDepth = depth (genfunc9 encs),
+                  encMaxDepth = maxDepth (genfunc9 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) },
+       Encoding { encEncode = encode (genfunc10 encs),
+                  encDecode = decode (genfunc10 encs),
+                  encInDomain = inDomain (genfunc10 encs),
+                  encDepth = depth (genfunc10 encs),
+                  encMaxDepth = maxDepth (genfunc10 encs),
+                  encSize = Nothing,
+                  encHighestIndex = const (const Nothing) })
+  in
+    encs
+
 -- THIS CODE IS FROM HASKELLWIKI, AND THEREFORE NOT SUBJECT TO THE
 -- COPYRIGHT CLAIM AT THE TOP OF THIS FILE
 --
