@@ -153,7 +153,6 @@ module Data.ArithEncode(
        seq',
 
        -- *** Recursive
-       RecurseDim(..),
        recursive,
 {-
        recursive2,
@@ -2037,56 +2036,89 @@ seq' enc @ Encoding { encInDomain = indomainfunc, encSize = sizeval,
                encDepth = newDepth, encMaxDepth = newMaxDepth,
                encHighestIndex = newHighestIndex }
 
-data RecurseDim dim =
-    RecurseDepth
-  | RecurseElem dim
-
-recursive :: Show ty => (Encoding dim ty -> Encoding dim ty)
-          -- ^ A function that, given a self-reference, instances,
+-- | Take a function which takes a self-reference and produces a
+-- recursive encoding, and produce the fixed-point encoding.
+recursive :: (Encoding dim ty -> Encoding dim ty)
+          -- ^ A function that, given a self-reference,
           -- constructs an encoding.
           -> Encoding dim ty
 recursive genfunc =
   let
-    newMaxDepth =
+    enc = Encoding { encEncode = encode (genfunc enc),
+                     encDecode = decode (genfunc enc),
+                     encInDomain = inDomain (genfunc enc),
+                     encDepth = depth (genfunc enc),
+                     encMaxDepth = maxDepth (genfunc enc),
+                     encSize = Nothing,
+                     encHighestIndex = const (const Nothing) }
+  in
+    enc
+{-
+-- | 
+recursive2 :: ((Encoding dim ty1, Encoding dim ty2) -> Encoding dim ty1)
+           -- ^ A function that, given self-references to both encodings,
+           -- constructs the first encoding.
+           -> ((Encoding dim ty1, Encoding dim ty2) -> Encoding dim ty1)
+           -- ^ A function that, given self-references to both encodings,
+           -- constructs the second encoding.
+           -> Encoding dim ty
+recursive2 genfunc1 genfunc2 =
+  let
+    newMaxDepth1 =
       let
-        Encoding { encMaxDepth = maxdepthfunc } = genfunc void
+        Encoding { encMaxDepth = maxdepthfunc } = genfunc1 void
       in
         maxdepthfunc
 
-    self =
+    newMaxDepth2 =
       let
-        recDecode num =
+        Encoding { encMaxDepth = maxdepthfunc } = genfunc2 void
+      in
+        maxdepthfunc
+
+    (enc1, enc2) =
+      let
+        recDecode1 num =
           let
-            Encoding { encDecode = decodefunc } = genfunc self
+            Encoding { encDecode = decodefunc } = genfunc enc1
           in
             decodefunc num
 
-        recEncode val =
+        recEncode1 val =
           let
-            Encoding { encEncode = encodefunc } = genfunc self
+            Encoding { encEncode = encodefunc } = genfunc enc1
           in
             encodefunc val
 
-
-        recDepth dim val =
+        recDepth1 dim val =
           let
-            Encoding { encDepth = depthfunc } = genfunc self
+            Encoding { encDepth = depthfunc } = genfunc enc1
           in
             depthfunc dim val
 
-        recInDomain val =
+        recInDomain1 val =
           let
-            Encoding { encInDomain = indomainfunc } = genfunc self
+            Encoding { encInDomain = indomainfunc } = genfunc enc1
           in
             indomainfunc val
-      in
-        Encoding { encEncode = recEncode, encDecode = recDecode,
-                   encSize = Nothing, encInDomain = recInDomain,
-                   encDepth = recDepth, encMaxDepth = newMaxDepth,
-                   encHighestIndex = const (const Nothing) }
-  in
-    self
 
+        recDecode2 num =
+          let
+            Encoding { encDecode = decodefunc } = genfunc enc2
+          in
+            decodefunc num
+      in
+        (Encoding { encEncode = recEncode1, encDecode = recDecode1,
+                    encSize = Nothing, encInDomain = recInDomain1,
+                    encDepth = recDepth1, encMaxDepth = newMaxDepth1,
+                    encHighestIndex = const (const Nothing) },
+         Encoding { encEncode = recEncode2, encDecode = recDecode2,
+                    encSize = Nothing, encInDomain = recInDomain2,
+                    encDepth = recDepth2, encMaxDepth = newMaxDepth2,
+                    encHighestIndex = const (const Nothing) })
+  in
+    enc
+-}
 -- THIS CODE IS FROM HASKELLWIKI, AND THEREFORE NOT SUBJECT TO THE
 -- COPYRIGHT CLAIM AT THE TOP OF THIS FILE
 --
