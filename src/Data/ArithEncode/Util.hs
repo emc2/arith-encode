@@ -35,17 +35,19 @@ module Data.ArithEncode.Util(
        unit,
        nonEmptySeq,
        nonEmptySet,
-       nonEmptyHashSet
+       nonEmptyHashSet,
        {-
        map,
        hashMap,
        func,
        hashFunc-}
+       tree
        ) where
 
 import Data.ArithEncode
 import Data.Hashable
 import Data.Set(Set)
+import Data.Tree
 import Prelude hiding (seq)
 
 --import qualified Data.HashMap as HashMap
@@ -71,3 +73,21 @@ nonEmptySet = nonzero . set
 nonEmptyHashSet :: (Hashable ty, Ord ty) =>
                    Encoding dim ty -> Encoding (SetDim dim) (HashSet.Set ty)
 nonEmptyHashSet = nonzero . hashSet
+
+-- | Build an encoding that produces trees from an encoding for the
+-- node labels.
+tree :: Encoding dim ty -> Encoding (SeqDim dim) (Tree ty)
+tree enc =
+  let
+    makeNode (label, children) =
+      Node { rootLabel = label, subForest = children }
+
+    unmakeNode Node { rootLabel = label, subForest = children } =
+      Just (label, children)
+
+    wrappedInteger = wrapDim (\(SeqElem dim) -> dim) enc
+
+    nodeEncoding nodeenc =
+      wrap unmakeNode makeNode (pair' wrappedInteger (seq' nodeenc))
+  in
+    recursive nodeEncoding
