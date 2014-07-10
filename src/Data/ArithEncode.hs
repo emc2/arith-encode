@@ -95,6 +95,7 @@ module Data.ArithEncode(
 
        -- ** Basic Encodings
        identity,
+       void,
        singleton,
        integral,
        interval,
@@ -122,11 +123,24 @@ module Data.ArithEncode(
        set,
        hashSet,
        SeqDim(..),
-       seq
+       seq,
+       RecurseDim(..),
+       recursive,
+{-
+       recursive2,
+       recursive3,
+       recursive4,
+       recursive5,
+       recursive6,
+       recursive7,
+       recursive8,
+       recursive9,
+       recursive10
+       -}
        ) where
 
 import Control.Exception
-import Control.Monad
+import Control.Monad hiding (void)
 import Data.Array.IArray(Array)
 import Data.Bits
 import Data.Hashable
@@ -329,6 +343,16 @@ identity = mkInfDimlessEncoding id id (const True)
 -- | A singleton encoding.  Maps a singular value to 0.
 singleton :: Eq ty => ty -> Encoding () ty
 singleton val = mkDimlessEncoding (const 0) (const val) (Just 1) (val ==)
+
+-- | An empty encoding, which contains no mappings.
+void :: Encoding a b
+void = Encoding { encEncode = (\_ -> throw (IllegalArgument "void encoding")),
+                  encDecode = (\_ -> throw (IllegalArgument "void encoding")),
+                  encSize = Just 0, encInDomain = const False,
+                  encDepth = (\_ _ -> throw (IllegalArgument "void encoding")),
+                  encMaxDepth = (\_ -> throw (IllegalArgument "void encoding")),
+                  encHighestIndex = (\_ _ -> throw (IllegalArgument "void encoding"))
+                }
 
 -- | An encoding of /all/ integers into the positive integers.
 integral :: Integral n => Encoding () n
@@ -1492,6 +1516,53 @@ seq Encoding { encEncode = encodefunc, encDecode = decodefunc,
                encSize = Nothing, encInDomain = newInDomain,
                encDepth = newDepth, encMaxDepth = newMaxDepth,
                encHighestIndex = newHighestIndex }
+
+data RecurseDim dim =
+    RecurseDepth
+  | RecurseElem dim
+
+recursive :: (Encoding dim ty -> Encoding dim ty)
+          -- ^ A function that, given a self-reference, instances,
+          -- constructs an encoding.
+          -> (ty -> Bool)
+          -- ^ A function that indicates whether or not an
+          -> Encoding (RecurseDim dim) ty
+recursive genfunc infinaldomain =
+  let
+    baseenc @ Encoding { encMaxDepth = maxdepthfunc } = genfunc void
+
+    recEncode enc @ Encoding { encInDomain = indomainfunc, encEncode = encodefunc }
+              val
+      | indomainfunc val = encodefunc val
+      | otherwise = recEncode (genfunc enc) val
+
+    recDecode enc @ Encoding { encSize = Just sizeval, encDecode = decodefunc } num
+      | num < sizeval = decodefunc num
+      | otherwise = recDecode (genfunc enc) num
+    recDecode Encoding { encSize = Nothing, encDecode = decodefunc } num =
+      decodefunc num
+
+    recDepth enc @ Encoding { encInDomain = indomainfunc,
+                              encDepth = depthfunc }
+             rdim @ (RecurseElem dim) val
+      | indomainfunc val = depthfunc dim val
+      | otherwise = recDepth (genfunc enc) rdim val
+    recDepth enc' RecurseDepth val =
+      let
+        findDepth enc @ Encoding { encInDomain = indomainfunc } n
+          | indomainfunc val = n
+          | otherwise = findDepth (genfunc enc) (n + 1)
+      in
+        findDepth enc' 0
+
+    newMaxDepth RecurseDepth = Nothing
+    newMaxDepth (RecurseElem dim) = maxdepthfunc dim
+  in
+    Encoding { encEncode = recEncode baseenc, encDecode = recDecode baseenc,
+               encSize = Nothing, encInDomain = infinaldomain,
+               encDepth = recDepth baseenc, encMaxDepth = newMaxDepth,
+               encHighestIndex = const (const Nothing) }
+
 
 -- THIS CODE IS FROM HASKELLWIKI, AND THEREFORE NOT SUBJECT TO THE
 -- COPYRIGHT CLAIM AT THE TOP OF THIS FILE
