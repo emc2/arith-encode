@@ -39,8 +39,11 @@ module Data.ArithEncode.Util(
 
        -- * Non-Empty Containers
        nonEmptySeq,
+       nonEmptySeq',
        nonEmptySet,
+       nonEmptySet',
        nonEmptyHashSet,
+       nonEmptyHashSet',
        {-
        -- * Functions and Relations
        function,
@@ -70,19 +73,58 @@ unit = singleton ()
 
 -- | Build an encoding that produces non-empty sequences from an
 -- encoding for the elements of the sequence.
-nonEmptySeq :: Encoding dim ty -> Encoding (SeqDim dim) [ty]
+nonEmptySeq :: Encoding dim ty
+            -- ^ The encoding for the element type
+            -> Encoding (SeqDim dim) [ty]
 nonEmptySeq = nonzero . seq
+
+-- | Build an encoding that produces non-empty sequences from an
+-- encoding for the elements of the sequence.
+--
+-- In this variant, the component type must be a @SetDim@, making it
+-- suitable as a recursive construction.
+nonEmptySeq' :: Encoding (SeqDim dim) ty
+             -- ^ The encoding for the element type
+             -> Encoding (SeqDim dim) [ty]
+nonEmptySeq' = nonzero . seq'
 
 -- | Build an encoding that produces non-empty sets from an encoding
 -- for the elements of the set.
-nonEmptySet :: Ord ty => Encoding dim ty -> Encoding (SetDim dim) (Set ty)
+nonEmptySet :: Ord ty =>
+               Encoding dim ty
+            -- ^ The encoding for the element type
+            -> Encoding (SetDim dim) (Set ty)
 nonEmptySet = nonzero . set
+
+-- | Build an encoding that produces non-empty sets from an encoding
+-- for the elements of the set.
+--
+-- In this variant, the component type must be a @SetDim@, making it
+-- suitable as a recursive construction.
+nonEmptySet' :: Ord ty =>
+               Encoding (SetDim dim) ty
+             -- ^ The encoding for the element type
+             -> Encoding (SetDim dim) (Set ty)
+nonEmptySet' = nonzero . set'
 
 -- | Build an encoding that produces non-empty hash sets from an encoding
 -- for the elements of the set.
 nonEmptyHashSet :: (Hashable ty, Ord ty) =>
-                   Encoding dim ty -> Encoding (SetDim dim) (HashSet.Set ty)
+                   Encoding dim ty
+                -- ^ The encoding for the element type
+                -> Encoding (SetDim dim) (HashSet.Set ty)
 nonEmptyHashSet = nonzero . hashSet
+
+-- | Build an encoding that produces non-empty hash sets from an encoding
+-- for the elements of the set.
+--
+-- In this variant, the component type must be a @SetDim@, making it
+-- suitable as a recursive construction.
+nonEmptyHashSet' :: (Hashable ty, Ord ty) =>
+                    Encoding (SetDim dim) ty
+                 -- ^ The encoding for the element type
+                 -> Encoding (SetDim dim) (HashSet.Set ty)
+nonEmptyHashSet' = nonzero . hashSet'
 {-
 -- | Build an encoding that produces a (finite partial) function from
 -- one type to another.  This function is represented using a @Map@.
@@ -115,10 +157,24 @@ function keyenc valenc =
       | otherwise = Nothing
   in
     wrapDim SeqElem (wrap mapToSeq seqToMap (seq valenc))
+
+
+-- | Build an encoding that produces relations between two types.
+-- These relations are represented as @Map@s from the first type to
+-- @Set@s of the second.
+relation :: (Ord keyty, Ord valty) =>
+            Encoding dim keyty
+         -- ^ The encoding for the left-hand type (ie. key type)
+         -> Encoding dim valty
+         -- ^ The encoding for the right-hand type (ie. value type)
+         -> Encoding dim (May keyty (Set valty))
+relation dim =
 -}
 -- | Build an encoding that produces trees from an encoding for the
 -- node labels.
-tree :: Encoding dim ty -> Encoding (SeqDim dim) (Tree ty)
+tree :: Encoding dim ty
+     -- ^ The encoding for the node data type
+     -> Encoding (SeqDim dim) (Tree ty)
 tree enc =
   let
     makeNode (label, children) =
