@@ -28,6 +28,7 @@
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
 {-# OPTIONS_GHC -Wall -Werror #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Derived encodings for standard datatypes.
 --
@@ -44,11 +45,14 @@ module Data.ArithEncode.Util(
        nonEmptySet',
        nonEmptyHashSet,
        nonEmptyHashSet',
-       {-
+
        -- * Functions and Relations
        function,
+       functionHashable,
+       relation,
+       relationHashable,
+{-
        hashMap,
-       func,
        hashFunc,
        -}
        -- * Trees
@@ -57,15 +61,16 @@ module Data.ArithEncode.Util(
 
 import Data.ArithEncode.Basic
 import Data.Hashable
---import Data.List
+import Data.List
 import Data.Maybe
 import Data.Set(Set)
 import Data.Tree
 import Prelude hiding (seq)
 
---import qualified Data.HashMap as HashMap
+import qualified Data.HashMap as HashMap
 import qualified Data.HashSet as HashSet
---import qualified Data.Map as Map
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 -- | An encoding that produces @()@.
 unit :: Encoding () ()
@@ -125,7 +130,7 @@ nonEmptyHashSet' :: (Hashable ty, Ord ty) =>
                  -- ^ The encoding for the element type
                  -> Encoding (SetDim dim) (HashSet.Set ty)
 nonEmptyHashSet' = nonzero . hashSet'
-{-
+
 -- | Build an encoding that produces a (finite partial) function from
 -- one type to another.  This function is represented using a @Map@.
 function :: (Ord keyty) =>
@@ -133,22 +138,25 @@ function :: (Ord keyty) =>
          -- ^ The encoding for the domain type (ie. key type)
          -> Encoding dim valty
          -- ^ The encoding for the range type (ie. value type)
-         -> Encoding dim (Map.Map keyty (Maybe valty))
+         -> Encoding dim (Map.Map keyty valty)
 function keyenc valenc =
   let
     seqToMap val =
-      Map.fromList (catMaybes (map (\(key, val) -> (decode keyenc key, val))
-                                   (zip (iterate (+ 1) 0) val)))
+      let
+        convertEnt (_, Nothing) = Nothing
+        convertEnt (key', Just val') = Just (decode keyenc key', val')
+      in
+        Just (Map.fromList (catMaybes (map convertEnt (zip (iterate (+ 1) 0) val))))
 
     mapToSeq val
       | all (inDomain keyenc) (Map.keys val) =
         let
-          foldfun (count, accum) (idx, val) =
+          foldfun (count, accum) (idx, val') =
             (idx + 1,
-             Just val : replicate (fromInteger (idx - count)) Nothing ++ accum)
+             Just val' : replicate (fromInteger (idx - count)) Nothing ++ accum)
 
           sorted = sortBy (\(a, _) (b, _) -> compare a b)
-                          (map (\(key, val) -> (encode keyenc key, val))
+                          (map (\(key, val') -> (encode keyenc key, val'))
                                (Map.assocs val))
 
           (_, out) = foldl foldfun (0, []) sorted
@@ -156,8 +164,43 @@ function keyenc valenc =
           Just (reverse out)
       | otherwise = Nothing
   in
-    wrapDim SeqElem (wrap mapToSeq seqToMap (seq valenc))
+    wrapDim SeqElem (wrap mapToSeq seqToMap (seq (optional valenc)))
 
+-- | Build an encoding that produces a (finite partial) function from
+-- one type to another.  This function is represented using a @HashMap@.
+functionHashable :: (Ord keyty, Hashable keyty) =>
+                    Encoding dim keyty
+                 -- ^ The encoding for the domain type (ie. key type)
+                 -> Encoding dim valty
+                 -- ^ The encoding for the range type (ie. value type)
+                 -> Encoding dim (HashMap.Map keyty valty)
+functionHashable keyenc valenc =
+  let
+    seqToMap val =
+      let
+        convertEnt (_, Nothing) = Nothing
+        convertEnt (key', Just val') = Just (decode keyenc key', val')
+      in
+        Just (HashMap.fromList (catMaybes (map convertEnt
+                                               (zip (iterate (+ 1) 0) val))))
+
+    mapToSeq val
+      | all (inDomain keyenc) (HashMap.keys val) =
+        let
+          foldfun (count, accum) (idx, val') =
+            (idx + 1,
+             Just val' : replicate (fromInteger (idx - count)) Nothing ++ accum)
+
+          sorted = sortBy (\(a, _) (b, _) -> compare a b)
+                          (map (\(key, val') -> (encode keyenc key, val'))
+                               (HashMap.assocs val))
+
+          (_, out) = foldl foldfun (0, []) sorted
+        in
+          Just (reverse out)
+      | otherwise = Nothing
+  in
+    wrapDim SeqElem (wrap mapToSeq seqToMap (seq (optional valenc)))
 
 -- | Build an encoding that produces relations between two types.
 -- These relations are represented as @Map@s from the first type to
@@ -167,9 +210,20 @@ relation :: (Ord keyty, Ord valty) =>
          -- ^ The encoding for the left-hand type (ie. key type)
          -> Encoding dim valty
          -- ^ The encoding for the right-hand type (ie. value type)
-         -> Encoding dim (May keyty (Set valty))
-relation dim =
--}
+         -> Encoding dim (Map.Map keyty (Set.Set valty))
+relation keyenc = function keyenc . wrapDim SetElem . set
+
+-- | Build an encoding that produces relations between two types.
+-- These relations are represented as @HashMap@s from the first type to
+-- @HashSet@s of the second.
+relationHashable :: (Hashable keyty, Ord keyty, Hashable valty, Ord valty) =>
+                    Encoding dim keyty
+                 -- ^ The encoding for the left-hand type (ie. key type)
+                 -> Encoding dim valty
+                 -- ^ The encoding for the right-hand type (ie. value type)
+                 -> Encoding dim (HashMap.Map keyty (HashSet.Set valty))
+relationHashable keyenc = functionHashable keyenc . wrapDim SetElem . hashSet
+
 -- | Build an encoding that produces trees from an encoding for the
 -- node labels.
 tree :: Encoding dim ty
