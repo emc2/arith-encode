@@ -122,7 +122,7 @@ tree :: Encoding dim ty -> Encoding (SeqDim dim) (Tree ty)
 tree enc =
   let
     makeNode (label, children) =
-      Node { rootLabel = label, subForest = children }
+      Just Node { rootLabel = label, subForest = children }
 
     unmakeNode Node { rootLabel = label, subForest = children } =
       Just (label, children)

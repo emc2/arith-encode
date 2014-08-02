@@ -466,7 +466,7 @@ fromOrdList elems =
 -- new encoding.
 wrap :: (a -> Maybe b)
      -- ^ The forward encoding function.
-     -> (b -> a)
+     -> (b -> Maybe a)
      -- ^ The reverse encoding function.
      -> Encoding dim b
      -- ^ The inner encoding.
@@ -478,9 +478,14 @@ wrap fwd rev enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
       case fwd val of
         Just val' -> val'
         Nothing -> throw (IllegalArgument "No mapping into underlying domain")
+
+    saferev val =
+      case rev val of
+        Just val' -> val'
+        Nothing -> throw (IllegalArgument "No mapping into external domain")
   in
     enc { encEncode = encodefunc . safefwd,
-          encDecode = rev . decodefunc,
+          encDecode = saferev . decodefunc,
           encInDomain = maybe False indomainfunc . fwd,
           encDepth = (\dim -> depthfunc dim . safefwd) }
 

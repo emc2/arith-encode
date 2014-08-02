@@ -695,10 +695,10 @@ unionTests =
         fromThird _ = Nothing
         fromFourth (Fourth x) = Just x
         fromFourth _ = Nothing
-        wrapFirst = wrap fromFirst First firstenc
-        wrapSecond = wrap fromSecond Second secondenc
-        wrapThird = wrap fromThird Third thirdenc
-        wrapFourth = wrap fromFourth Fourth fourthenc
+        wrapFirst = wrap fromFirst (Just . First) firstenc
+        wrapSecond = wrap fromSecond (Just . Second) secondenc
+        wrapThird = wrap fromThird (Just . Third) thirdenc
+        wrapFourth = wrap fromFourth (Just . Fourth) fourthenc
         iso = union [ wrapFirst, wrapSecond, wrapThird, wrapFourth ]
         wrapFirstVals = map First firstvals
         wrapSecondVals = map Second secondvals
@@ -1057,7 +1057,7 @@ instance Ord ty => Ord (Tree ty) where
 treeEncoding =
   let
     makeNode (label, children) =
-      Node { rootLabel = label, subForest = children }
+      Just Node { rootLabel = label, subForest = children }
 
     unmakeNode Node { rootLabel = label, subForest = children } =
       Just (label, children)
@@ -1100,7 +1100,7 @@ testlist = [
                                  ['A', 'B', 'C', 'D', 'E'] ['F', 'G'],
     "wrap" ~:
       testFiniteEncodingWithVals ["wrap", "fromOrdList"]
-                                 (wrap (Just . toUpper) toLower
+                                 (wrap (Just . toUpper) (Just . toLower)
                                        (fromOrdList ['A', 'B', 'C', 'D', 'E']))
                                  ['a', 'b', 'c', 'd', 'e'] ['f', 'g'],
     "optional" ~: optionalEncodingTests,
