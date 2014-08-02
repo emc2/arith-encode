@@ -28,24 +28,34 @@
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
 {-# OPTIONS_GHC -Wall -Werror #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 
 -- | Derived encodings for standard datatypes.
+--
+-- This module contains a number of useful constructions which can be
+-- defined using the constructions from "Basic".
 module Data.ArithEncode.Util(
+       -- * Simple Encodings
        unit,
+
+       -- * Non-Empty Containers
        nonEmptySeq,
        nonEmptySet,
        nonEmptyHashSet,
        {-
-       map,
+       -- * Functions and Relations
+       function,
        hashMap,
        func,
-       hashFunc-}
+       hashFunc,
+       -}
+       -- * Trees
        tree
        ) where
 
-import Data.ArithEncode
+import Data.ArithEncode.Basic
 import Data.Hashable
+--import Data.List
+import Data.Maybe
 import Data.Set(Set)
 import Data.Tree
 import Prelude hiding (seq)
@@ -73,7 +83,39 @@ nonEmptySet = nonzero . set
 nonEmptyHashSet :: (Hashable ty, Ord ty) =>
                    Encoding dim ty -> Encoding (SetDim dim) (HashSet.Set ty)
 nonEmptyHashSet = nonzero . hashSet
+{-
+-- | Build an encoding that produces a (finite partial) function from
+-- one type to another.  This function is represented using a @Map@.
+function :: (Ord keyty) =>
+            Encoding dim keyty
+         -- ^ The encoding for the domain type (ie. key type)
+         -> Encoding dim valty
+         -- ^ The encoding for the range type (ie. value type)
+         -> Encoding dim (Map.Map keyty (Maybe valty))
+function keyenc valenc =
+  let
+    seqToMap val =
+      Map.fromList (catMaybes (map (\(key, val) -> (decode keyenc key, val))
+                                   (zip (iterate (+ 1) 0) val)))
 
+    mapToSeq val
+      | all (inDomain keyenc) (Map.keys val) =
+        let
+          foldfun (count, accum) (idx, val) =
+            (idx + 1,
+             Just val : replicate (fromInteger (idx - count)) Nothing ++ accum)
+
+          sorted = sortBy (\(a, _) (b, _) -> compare a b)
+                          (map (\(key, val) -> (encode keyenc key, val))
+                               (Map.assocs val))
+
+          (_, out) = foldl foldfun (0, []) sorted
+        in
+          Just (reverse out)
+      | otherwise = Nothing
+  in
+    wrapDim SeqElem (wrap mapToSeq seqToMap (seq valenc))
+-}
 -- | Build an encoding that produces trees from an encoding for the
 -- node labels.
 tree :: Encoding dim ty -> Encoding (SeqDim dim) (Tree ty)
