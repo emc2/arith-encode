@@ -1,6 +1,6 @@
 Name:                   arith-encode
 Category:               Testing, Test, Serialization, Data
-Version:                0.1.1
+Version:                0.2.0
 License:                BSD3
 License-File:           LICENSE
 Author:                 Eric McCorkle
@@ -42,4 +42,5 @@ Library
   build-depends:        base >= 4.4.0 && < 5, Cabal >= 1.16.0, containers,
                         hashmap, array, hashable
   exposed-modules:      Data.ArithEncode
+                        Data.ArithEncode.Basic
                         Data.ArithEncode.Util
