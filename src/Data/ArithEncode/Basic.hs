@@ -111,7 +111,7 @@ module Data.ArithEncode.Basic(
 
        -- *** Sequences
        seq,
---       boundedSeq,
+       boundedSeq,
 
        -- *** Recursive
        recursive,
@@ -137,7 +137,7 @@ import Data.Set(Set)
 import Data.Typeable
 import Prelude hiding (elem, either, seq)
 import Math.NumberTheory.Powers.Squares
---import Math.NumberTheory.Logarithms
+import Math.NumberTheory.Logarithms
 
 import qualified Data.Array.IArray as Array
 import qualified Data.Either as Either
@@ -1261,16 +1261,16 @@ seq enc @ Encoding { encInDomain = indomainfunc } =
     Encoding { encEncode = newEncode, encDecode = newDecode,
                encSize = Nothing, encInDomain = newInDomain }
 
-{-
 -- | Sum of finite geometric series
 geometricSum :: Integer -> Integer -> Integer
 geometricSum len base = (1 - base ^ (len + 1)) `quot` (1 - base)
 
 -- | Integer logarithm (for base b and n, find largest i such that b^i
 -- <= n)
+ilog :: Integer -> Integer -> Integer
 ilog n = toInteger . integerLogBase' n
 
-boundedSeqCore :: Integer -> Encoding dim ty -> ([ty] -> Integer, Integer -> [ty])
+boundedSeqCore :: Integer -> Encoding ty -> ([ty] -> Integer, Integer -> [ty])
 boundedSeqCore len Encoding { encEncode = encodefunc, encDecode = decodefunc,
                               encSize = sizeval } =
   case sizeval of
@@ -1319,26 +1319,18 @@ boundedSeqCore len Encoding { encEncode = encodefunc, encDecode = decodefunc,
 -- given value from an encoding for elements of the sequence.
 boundedSeq :: Integer
            -- ^ The maximum length of the sequence
-           -> Encoding dim ty
+           -> Encoding ty
            -- ^ The @Encoding@ for the sequence elements
-           -> Encoding (SeqDim dim) [ty]
-boundedSeq len enc @ Encoding { encSize = sizeval, encInDomain = indomainfunc,
-                                encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-                                encHighestIndex = highindexfunc } =
+           -> Encoding [ty]
+boundedSeq len enc @ Encoding { encSize = sizeval, encInDomain = indomainfunc } =
   let
     (newencode, newdecode) = boundedSeqCore len enc
-    newsize = sizeval >>= geometricSum len
+    newsize = sizeval >>= return . geometricSum len
     newindomain vals = length vals <= fromInteger len && all indomainfunc vals
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = size, encInDomain = newindomain }
+               encSize = newsize, encInDomain = newindomain }
 
-boundedSeq' :: Integer
-            -- ^ The maximum length of the sequence
-            -> Encoding (SeqDim dim) ty
-            -- ^ The @Encoding@ for the sequence elements
-            -> Encoding (SeqDim dim) [ty]
--}
 -- | Take a function which takes a self-reference and produces a
 -- recursive encoding, and produce the fixed-point encoding.
 recursive :: (Encoding ty -> Encoding ty)
