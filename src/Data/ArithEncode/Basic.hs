@@ -54,9 +54,7 @@ module Data.ArithEncode.Basic(
        -- ** Constructors
        Encoding,
        mkEncoding,
-       mkDimlessEncoding,
        mkInfEncoding,
-       mkInfDimlessEncoding,
 
        -- ** Using Encodings
        IllegalArgument(..),
@@ -64,9 +62,6 @@ module Data.ArithEncode.Basic(
        decode,
        size,
        inDomain,
-       maxDepth,
-       depth,
-       highestIndex,
 
        -- * Building Encodings
 
@@ -81,9 +76,8 @@ module Data.ArithEncode.Basic(
 
        -- ** Constructions
 
-       -- *** Wrapping Values and Dimensions
+       -- *** Wrapping
        wrap,
-       wrapDim,
 
        -- *** Optional
        optional,
@@ -97,37 +91,27 @@ module Data.ArithEncode.Basic(
        either,
        union,
 
-       -- *** Products
+       -- *** Products and Powers
        pair,
-       pair',
        triple,
-       triple',
        quad,
-       quad',
        quint,
-       quint',
        sextet,
-       sextet',
        septet,
-       septet',
        octet,
-       octet',
        nonet,
-       nonet',
        dectet,
-       dectet',
+--       power,
 
        -- *** Sets
-       SetDim(..),
        set,
-       set',
        hashSet,
-       hashSet',
+--       exactSet,
+--       boundedSet,
 
        -- *** Sequences
-       SeqDim(..),
        seq,
-       seq',
+--       boundedSeq,
 
        -- *** Recursive
        recursive,
@@ -152,6 +136,8 @@ import Data.Maybe
 import Data.Set(Set)
 import Data.Typeable
 import Prelude hiding (elem, either, seq)
+import Math.NumberTheory.Powers.Squares
+--import Math.NumberTheory.Logarithms
 
 import qualified Data.Array.IArray as Array
 import qualified Data.Either as Either
@@ -174,7 +160,7 @@ instance Exception IllegalArgument
 -- | Type for an encoding.  The structure of this type is deliberately
 -- hidden from users.  Use the 'mkEncoding' functions to construct
 -- 'Encoding's, and the seven functions to use them.
-data Encoding dim ty =
+data Encoding ty =
   Encoding {
     -- | Encode a @ty@ as a positive integer.
     encEncode :: ty -> Integer,
@@ -183,19 +169,11 @@ data Encoding dim ty =
     -- | The size of an encoding, or 'Nothing' if it is infinite.
     encSize :: !(Maybe Integer),
     -- | Indicate whether or not a value is in the domain of the encoding.
-    encInDomain :: ty -> Bool,
-    -- | Get the maximum depth of a given dimension.
-    encMaxDepth :: dim -> Maybe Integer,
-    -- | Get the depth of a given @ty@ in a given dimension.
-    encDepth :: dim -> ty -> Integer,
-    -- | Get the higest number to which any 'ty' of a given depth in a
-    -- given dimension will map.
-    encHighestIndex :: dim -> Integer -> Maybe Integer
+    encInDomain :: ty -> Bool
   }
 
 -- | Create an encoding from all the necessary components.
-mkEncoding :: Enum dim
-           => (ty -> Integer)
+mkEncoding :: (ty -> Integer)
            -- ^ The encoding function.
            -> (Integer -> ty)
            -- ^ The decoding function.  Can assume all inputs are positive.
@@ -204,72 +182,23 @@ mkEncoding :: Enum dim
            -> (ty -> Bool)
            -- ^ A function indicating whether or not a given value is
            -- in the domain of values.
-           -> (dim -> Maybe Integer)
-           -- ^ A function indicating the maximum depth of any dimension.
-           -> (dim -> ty -> Integer)
-           -- ^ A function indicating the depth of a @ty@ in dimension @dim@.
-           -> (dim -> Integer -> Maybe Integer)
-           -- ^ A function indicating the last number mapping to a
-           -- @ty@ less than a given depth in a given dimension.
-           -> Encoding dim ty
-mkEncoding encodefunc decodefunc sizeval indomain
-           maxdepthfunc depthfunc highindexfunc =
+           -> Encoding ty
+mkEncoding encodefunc decodefunc sizeval indomain =
   Encoding { encEncode = encodefunc, encDecode = decodefunc,
-             encSize = sizeval, encInDomain = indomain,
-             encMaxDepth = maxdepthfunc, encDepth = depthfunc,
-             encHighestIndex = highindexfunc }
+             encSize = sizeval, encInDomain = indomain }
 
 -- | Create an infinite-sized encoding.  This variant does not need a
 -- size.
-mkInfEncoding :: Enum dim
-              => (ty -> Integer)
+mkInfEncoding :: (ty -> Integer)
               -- ^ The encoding function.
               -> (Integer -> ty)
               -- ^ The decoding function.  Can assume all inputs are positive.
               -> (ty -> Bool)
               -- ^ A function indicating whether or not a given value is
               -- in the domain of values.
-              -> (dim -> Maybe Integer)
-              -- ^ A function indicating the maximum depth of any dimension.
-              -> (dim -> ty -> Integer)
-              -- ^ A function indicating the depth of a @ty@ in dimension @dim@.
-              -> (dim -> Integer -> Maybe Integer)
-              -- ^ A function indicating the last number mapping to a
-              -- @ty@ less than a given depth in a given dimension.
-              -> Encoding dim ty
+              -> Encoding ty
 mkInfEncoding encodefunc decodefunc indomain =
   mkEncoding encodefunc decodefunc Nothing indomain
-
--- | Create a dimensionless (potentially finite) encoding.  This
--- variant does not need the dimension-handling functions.
-mkDimlessEncoding :: (ty -> Integer)
-                  -- ^ The encoding function.
-                  -> (Integer -> ty)
-                  -- ^ The decoding function.  Can assume all inputs
-                  -- are positive.
-                  -> Maybe Integer
-                  -- ^ The number of mappings, or 'Nothing' if it is infinite.
-                  -> (ty -> Bool)
-                  -- ^ A function indicating whether or not a given value is
-                  -- in the domain of values.
-                  -> Encoding () ty
-mkDimlessEncoding encodefunc decodefunc sizeval indomain =
-  mkEncoding encodefunc decodefunc sizeval indomain
-             (const (Just 0)) (const (const 0)) (const (const sizeval))
-
--- | Create an infinite, dimensionless encoding.  This variant does
--- not need a size or dimension-handling functions.
-mkInfDimlessEncoding :: (ty -> Integer)
-                     -- ^ The encoding function.
-                     -> (Integer -> ty)
-                     -- ^ The decoding function.  Can assume all
-                     -- inputs are positive.
-                     -> (ty -> Bool)
-                     -- ^ A function indicating whether or not a given value is
-                     -- in the domain of values.
-                     -> Encoding () ty
-mkInfDimlessEncoding encodefunc decodefunc indomain =
-  mkDimlessEncoding encodefunc decodefunc Nothing indomain
 
 -- | Encode a @ty@ as a positive 'Integer' (ie. a natural number).
 --
@@ -277,7 +206,7 @@ mkInfDimlessEncoding encodefunc decodefunc indomain =
 -- 'inDomain' returns 'True'), the underlying implementation /may/
 -- throw 'IllegalArgument'.  However, this is not /strictly/ required;
 -- therefore, do not rely on 'IllegalArgument' being thrown.
-encode :: Encoding dim ty
+encode :: Encoding ty
        -- ^ Encoding to use.
        -> ty
        -- ^ Value to encode.
@@ -291,7 +220,7 @@ encode encoding = encEncode encoding
 -- 'size'), the underlying implementation /may/ throw
 -- 'IllegalArgument'.  However, this not /strictly/ required;
 -- therefore, do not rely on 'IllegalArgument' being thrown.
-decode :: Encoding dim ty
+decode :: Encoding ty
        -- ^ Encoding to use.
        -> Integer
        -- ^ Number to decode.
@@ -306,14 +235,14 @@ decode encoding num
   | otherwise = (encDecode encoding) num
 
 -- | Get the size of an 'Encoding', or 'Nothing' if it is infinite.
-size :: Encoding dim ty
+size :: Encoding ty
      -- ^ Encoding to use.
      -> Maybe Integer
      -- ^ Number of values mapped, or 'Nothing' for infinity.
 size = encSize
 
 -- | Indicate whether or not a value is in the domain of the encoding.
-inDomain :: Encoding dim ty
+inDomain :: Encoding ty
          -- ^ Encoding to use.
          -> ty
          -- ^ Value to query.
@@ -321,63 +250,27 @@ inDomain :: Encoding dim ty
          -- ^ Whether or not the value is in the domain of the encoding.
 inDomain encoding = encInDomain encoding
 
--- | Get the maximum depth of a given dimension.
-maxDepth :: Encoding dim ty
-         -- ^ Encoding to use.
-         -> dim
-         -- ^ Dimension.
-         -> Maybe Integer
-         -- ^ Maximum depth of @dim@.
-maxDepth encoding = encMaxDepth encoding
-
--- | Get the depth of a value in a given dimension.
-depth :: Encoding dim ty
-      -- ^ Encoding to use.
-      -> dim
-      -- ^ Dimension.
-      -> ty
-      -- ^ Dimension.
-      -> Integer
-      -- ^ Maximum depth of @dim@.
-depth encoding = encDepth encoding
-
--- | Get the higest @n@ to which any value of depth no greater than
--- the given bound will be mapped using the given encoding.
-highestIndex :: Encoding dim ty
-             -- ^ Encoding to use.
-             -> dim
-             -- ^ Dimension.
-             -> Integer
-             -- ^ Bound on depth.
-             -> Maybe Integer
-             -- ^ Maximum depth of @dim@.
-highestIndex encoding = encHighestIndex encoding
-
 -- | The identity encoding.  Maps every positive 'Integer' to itself.
 --
 -- Note: only positive integers are in the domain of this encoding.
 -- For all an encoding whose domain is all integers, use 'integral'.
-identity :: Encoding () Integer
-identity = mkInfDimlessEncoding id id (>= 0)
+identity :: Encoding Integer
+identity = mkInfEncoding id id (>= 0)
 
 -- | A singleton encoding.  Maps a singular value to 0.
-singleton :: Eq ty => ty -> Encoding () ty
-singleton val = mkDimlessEncoding (const 0) (const val) (Just 1) (val ==)
+singleton :: Eq ty => ty -> Encoding ty
+singleton val = mkEncoding (const 0) (const val) (Just 1) (val ==)
 
 -- | An empty encoding, which contains no mappings.
-void :: Encoding a b
+void :: Encoding b
 void = Encoding { encEncode = (\_ -> throw (IllegalArgument "void encoding")),
                   encDecode = (\_ -> throw (IllegalArgument "void encoding")),
-                  encSize = Just 0, encInDomain = const False,
-                  encDepth = (\_ _ -> throw (IllegalArgument "void encoding")),
-                  encMaxDepth = (\_ -> throw (IllegalArgument "void encoding")),
-                  encHighestIndex = (\_ _ -> throw (IllegalArgument "void encoding"))
-                }
+                  encSize = Just 0, encInDomain = const False }
 
 -- | An encoding of /all/ integers.
 --
 -- Note: this is /emph/ not an identity mapping.
-integral :: Integral n => Encoding () n
+integral :: Integral n => Encoding n
 integral =
   let
     encodefunc num
@@ -388,7 +281,7 @@ integral =
       | num `testBit` 0 = fromInteger (-((num `shiftR` 1) + 1))
       | otherwise = fromInteger (num `shiftR` 1)
   in
-    mkInfDimlessEncoding encodefunc decodefunc (const True)
+    mkInfEncoding encodefunc decodefunc (const True)
 
 -- | Build an encoding from a finite range of 'Integral's.
 --
@@ -400,7 +293,7 @@ interval :: Integral n
          -- ^ The (inclusive) lower bound on the range.
          -> n
          -- ^ The (inclusive) upper bound on the range.
-         -> Encoding () n
+         -> Encoding n
 interval lower upper
   | lower <= upper =
     let
@@ -410,14 +303,14 @@ interval lower upper
       sizeval = Just ((toInteger upper) - (toInteger lower) + 1)
       indomainfunc val = lower <= val && val <= upper
     in
-       mkDimlessEncoding encodefunc decodefunc sizeval indomainfunc
+       mkEncoding encodefunc decodefunc sizeval indomainfunc
   | otherwise = error "Lower bound is not less than upper bound"
 
 -- | Build an encoding from a list of items with a 'Hashable' instance.
 fromHashableList :: forall ty. (Hashable ty, Ord ty)
                  => [ty]
                  -- ^ A list of items to encode.
-                 -> Encoding () ty
+                 -> Encoding ty
                  -- ^ An encoding mapping the items in the list to
                  -- natural numbers.
 fromHashableList elems =
@@ -433,13 +326,13 @@ fromHashableList elems =
     sizeval = Just (toInteger len)
     indomainfunc = (flip HashMap.member) fwdmap
   in
-    mkDimlessEncoding encodefunc decodefunc sizeval indomainfunc
+    mkEncoding encodefunc decodefunc sizeval indomainfunc
 
 -- | Build an encoding from a list of items with an 'Ord' instance.
 fromOrdList :: forall ty . Ord ty
             => [ty]
             -- ^ A list of items to encode.
-            -> Encoding () ty
+            -> Encoding ty
             -- ^ An encoding mapping the items in the list to natural
             -- numbers.
 fromOrdList elems =
@@ -455,7 +348,7 @@ fromOrdList elems =
     sizeval = Just (toInteger len)
     indomainfunc = (flip Map.member) fwdmap
   in
-    mkDimlessEncoding encodefunc decodefunc sizeval indomainfunc
+    mkEncoding encodefunc decodefunc sizeval indomainfunc
 
 -- | Wrap an encoding using a pair of functions.  These functions must
 -- also define an isomorphism.
@@ -468,11 +361,11 @@ wrap :: (a -> Maybe b)
      -- ^ The forward encoding function.
      -> (b -> Maybe a)
      -- ^ The reverse encoding function.
-     -> Encoding dim b
+     -> Encoding b
      -- ^ The inner encoding.
-     -> Encoding dim a
+     -> Encoding a
 wrap fwd rev enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
-                              encInDomain = indomainfunc, encDepth = depthfunc } =
+                              encInDomain = indomainfunc } =
   let
     safefwd val =
       case fwd val of
@@ -486,29 +379,17 @@ wrap fwd rev enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
   in
     enc { encEncode = encodefunc . safefwd,
           encDecode = saferev . decodefunc,
-          encInDomain = maybe False indomainfunc . fwd,
-          encDepth = (\dim -> depthfunc dim . safefwd) }
-
--- | Wrap an encoding using a function that translates the dimensions
--- from one datatype to another.
-wrapDim :: (a -> b) -> Encoding b ty -> Encoding a ty
-wrapDim mapdim enc @ Encoding { encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-                                encHighestIndex = highindexfunc } =
-  enc { encDepth = depthfunc . mapdim, encMaxDepth = maxdepthfunc . mapdim,
-        encHighestIndex = highindexfunc . mapdim }
+          encInDomain = maybe False indomainfunc . fwd }
 
 -- | Generate an encoding for @Maybe ty@ from an inner encoding for
 -- @ty@.  This adds one level of depth: @Nothing@ has depth @0@, and
 -- the rest of the depths are determined by adding one to the depths
 -- from the inner encoding.
-optional :: Encoding dim ty -> Encoding dim (Maybe ty)
+optional :: Encoding ty -> Encoding (Maybe ty)
 optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
-                    encSize = sizeval, encInDomain = indomainfunc,
-                    encMaxDepth = maxdepthfunc, encDepth = depthfunc,
-                    encHighestIndex = highestindexfunc } =
+                    encSize = sizeval, encInDomain = indomainfunc } =
   let
     newsize = sizeval >>= return . (+ 1)
-    newmaxdepth dim = maxdepthfunc dim >>= return . (+ 1)
     newindomain = maybe True indomainfunc
 
     newencode Nothing = 0
@@ -516,17 +397,9 @@ optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
 
     newdecode 0 = Nothing
     newdecode num = Just (decodefunc (num - 1))
-
-    newdepth _ Nothing = 0
-    newdepth dim (Just val) = (depthfunc dim val) + 1
-
-    newhighestindex _ 0 = Just 0
-    newhighestindex dim val = highestindexfunc dim (val - 1)
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = newsize, encInDomain = newindomain,
-               encMaxDepth = newmaxdepth, encDepth = newdepth,
-               encHighestIndex = newhighestindex }
+               encSize = newsize, encInDomain = newindomain }
 
 -- | The dual of @optional@.  This construction assumes that @Nothing@
 -- maps to @0@, and removes it from the input domain.  It also assumes
@@ -535,45 +408,35 @@ optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
 --
 -- Using this construction on encodings for @Maybe ty@ which are not
 -- produced by @optional@ may have unexpected results.
-mandatory :: Encoding dim (Maybe ty) -> Encoding dim ty
+mandatory :: Encoding (Maybe ty) -> Encoding ty
 mandatory Encoding { encEncode = encodefunc, encDecode = decodefunc,
-                     encSize = sizeval, encInDomain = indomainfunc,
-                     encMaxDepth = maxdepthfunc, encDepth = depthfunc,
-                     encHighestIndex = highestindexfunc } =
+                     encSize = sizeval, encInDomain = indomainfunc } =
   let
     dec n = n - 1
     newencode = dec . encodefunc . Just
     newdecode = fromJust . decodefunc . (+ 1)
     newsize = sizeval >>= return . dec
-    newmaxdepth dim = maxdepthfunc dim >>= return . dec
-    newdepth dim = dec . depthfunc dim . Just
-    newhighestindex dim = highestindexfunc dim . dec
     newindomain = indomainfunc . Just
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = newsize, encInDomain = newindomain,
-               encMaxDepth = newmaxdepth, encDepth = newdepth,
-               encHighestIndex = newhighestindex }
+               encSize = newsize, encInDomain = newindomain }
 
 -- | Removes the mapping to @0@ (ie. the first mapping).  This has the
 -- same effect as @exclude [x]@, where @x@ is the value that maps to
 -- @0@.  It is also similar to @mandatory@, except that it does not
 -- change the base type.
-nonzero :: Encoding dim ty -> Encoding dim ty
+nonzero :: Encoding ty -> Encoding ty
 nonzero enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
-                         encSize = sizeval, encInDomain = indomainfunc,
-                         encHighestIndex = highindexfunc } =
+                         encSize = sizeval, encInDomain = indomainfunc } =
   let
     dec n = n - 1
     newencode = dec . encodefunc
     newdecode = decodefunc . (+ 1)
     newsize = sizeval >>= return . dec
-    newhighestindex dim num = highindexfunc dim num >>= return . dec
     newindomain val = indomainfunc val && 0 /= encodefunc val
   in
     enc { encEncode = newencode, encDecode = newdecode,
-          encSize = newsize, encInDomain = newindomain,
-          encHighestIndex = newhighestindex }
+          encSize = newsize, encInDomain = newindomain }
 
 -- | A simple binary tree structure, for use with exclude.
 data BinTree key val =
@@ -630,13 +493,12 @@ toBinTree vals =
 -- this should only be used with a very short excludes list.
 exclude :: [ty]
         -- ^ The list of items to exclude.
-        -> Encoding dim ty
+        -> Encoding ty
         -- ^ The base @Encoding@.
-        -> Encoding dim ty
+        -> Encoding ty
 exclude [] enc = enc
 exclude excludes enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
-                                  encSize = sizeval, encInDomain = indomainfunc,
-                                  encHighestIndex = highindexfunc } =
+                                  encSize = sizeval, encInDomain = indomainfunc } =
   let
     forbidden = HashSet.fromList (map encodefunc excludes)
     sortedlist = sort (map encodefunc excludes)
@@ -676,15 +538,6 @@ exclude excludes enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc
     newEncode = toExcluded . encodefunc
     newDecode = decodefunc . fromExcluded
 
-    newHighestIndex dim depthval =
-      do
-        maxdepth <- highindexfunc dim depthval
-        case closestWithin maxdepth fwdtree of
-          Just (_, offset)
-            | offset <= maxdepth -> return (maxdepth - offset)
-            | otherwise -> return 0
-          Nothing -> return maxdepth
-
     newSize =
       do
         n <- sizeval
@@ -694,24 +547,19 @@ exclude excludes enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc
       indomainfunc val && not (HashSet.member (encodefunc val) forbidden)
   in
     enc { encEncode = newEncode, encDecode = newDecode,
-          encSize = newSize, encInDomain = newInDomain,
-          encHighestIndex = newHighestIndex }
+          encSize = newSize, encInDomain = newInDomain }
 
 -- | Combine two encodings into a single encoding that returns an
 -- @Either@ of the two types.
-either :: Encoding dim1 ty1
+either :: Encoding ty1
        -- ^ The @Encoding@ that will be represented by @Left@.
-       -> Encoding dim2 ty2
+       -> Encoding ty2
        -- ^ The @Encoding@ that will be represented by @Right@.
-       -> Encoding (Either dim1 dim2) (Either ty1 ty2)
+       -> Encoding (Either ty1 ty2)
 either Encoding { encEncode = encode1, encDecode = decode1,
-                  encInDomain = indomain1, encSize = sizeval1,
-                  encDepth = depth1, encHighestIndex = highindex1,
-                  encMaxDepth = maxDepth1 }
+                  encInDomain = indomain1, encSize = sizeval1 }
        Encoding { encEncode = encode2, encDecode = decode2,
-                  encInDomain = indomain2, encSize = sizeval2,
-                  encDepth = depth2, encHighestIndex = highindex2,
-                  encMaxDepth = maxDepth2 } =
+                  encInDomain = indomain2, encSize = sizeval2 } =
   let
     -- There are three cases here, depending on the size of the two
     -- mappings.  This does replicate code, but it also does a lot of
@@ -780,23 +628,11 @@ either Encoding { encEncode = encode1, encDecode = decode1,
 
     newEncode = Either.either (leftIdxFwd . encode1) (rightIdxFwd . encode2)
     newDecode = eitherIndex (Left . decode1) (Right . decode2)
-    newMaxDepth = Either.either maxDepth1 maxDepth2
-
-    newHighestIndex (Left dim) =
-      maybe Nothing (Just . leftIdxFwd . (\n -> n - 1)) . highindex1 dim
-    newHighestIndex (Right dim) =
-      maybe Nothing (Just . rightIdxFwd . (\n -> n - 1)) . highindex2 dim
-
-    newDepth (Left dim) (Left val) = depth1 dim val
-    newDepth (Right dim) (Right val) = depth2 dim val
-    newDepth _ _ = 0
 
     newInDomain = Either.either indomain1 indomain2
   in
     Encoding { encEncode = newEncode, encDecode = newDecode,
-               encSize = newSize, encInDomain = newInDomain,
-               encMaxDepth = newMaxDepth, encDepth = newDepth,
-               encHighestIndex = newHighestIndex }
+               encSize = newSize, encInDomain = newInDomain }
 
 sortfunc :: Maybe Integer -> Maybe Integer -> Ordering
 sortfunc Nothing Nothing = EQ
@@ -804,13 +640,12 @@ sortfunc Nothing _ = GT
 sortfunc _ Nothing = LT
 sortfunc (Just a) (Just b) = compare a b
 
--- | Combine a set of encodings with the same dimension and result
--- type into a single encoding which represents the disjoint union of
--- the components.
-union :: forall dim ty.
-         [Encoding dim ty]
+-- | Combine a set of encodings with the result type into a single
+-- encoding which represents the disjoint union of the components.
+union :: forall ty.
+         [Encoding ty]
       -- ^ The components of the union.
-      -> Encoding dim ty
+      -> Encoding ty
 union [] = error "union encoding with no arguments"
 union encodings =
   let
@@ -822,7 +657,7 @@ union encodings =
     (sizes, sortedencodings) =
       unzip (sortBy sortpair (map (\enc -> (size enc, enc)) encodings))
     -- Turn the sorted element encodings into an array for fast access
-    encodingarr :: Array.Array Int (Encoding dim ty)
+    encodingarr :: Array.Array Int (Encoding ty)
     encodingarr = Array.listArray (0, numelems - 1) sortedencodings
 
     (fwdmapnum, revmapnum) =
@@ -931,57 +766,42 @@ union encodings =
       in
         foldl foldfun (Just 0) sizes
 
-    depthfunc dim val =
-      case find ((flip inDomain) val) sortedencodings of
-        Just enc -> depth enc dim val
-        Nothing -> throw (IllegalArgument "Value not in domain of any component")
-
     indomainfunc val = any ((flip inDomain) val) sortedencodings
-    maxdepthfunc dim = maximum (map ((flip maxDepth) dim) sortedencodings)
-    highindexfunc dim depthval =
-      let
-        mapfun (encidx, enc) =
-          do
-            highidx <- highestIndex enc dim depthval
-            return (fwdmapnum highidx encidx)
-      in
-        maximumBy sortfunc (map mapfun (Array.assocs encodingarr))
   in
     Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc }
+               encSize = sizeval, encInDomain = indomainfunc }
 
-mkPairCore :: Encoding dim1 ty1 -> Encoding dim2 ty2 ->
-                      ((ty1, ty2) -> Integer, Integer -> (ty1, ty2), Maybe Integer)
+isqrt :: Integer -> Integer
+isqrt = integerSquareRoot'
+
+mkPairCore :: Encoding ty1 -> Encoding ty2 ->
+              ((ty1, ty2) -> Integer, Integer -> (ty1, ty2), Maybe Integer)
 mkPairCore Encoding { encEncode = encode1, encDecode = decode1,
                       encSize = sizeval1 }
            Encoding { encEncode = encode2, encDecode = decode2,
                       encSize = sizeval2 } =
   let
-    (encodefunc, decodefunc) = case (sizeval1, sizeval2) of
+    (convertidx, decodefunc) = case (sizeval1, sizeval2) of
       (Just maxval, _) ->
         let
-          newencode (val1, val2) = ((encode2 val2) * maxval) + (encode1 val1)
+          convertidx' idx1 idx2 = (idx2 * maxval) + idx1
           newdecode num = (decode1 (num `mod` maxval), decode2 (num `quot` maxval))
         in
-          (newencode, newdecode)
+          (convertidx', newdecode)
       (_, Just maxval) ->
         let
-          newencode (val1, val2) = ((encode1 val1) * maxval) + (encode2 val2)
+          convertidx' idx1 idx2 = (idx1 * maxval) + idx2
           newdecode num = (decode1 (num `quot` maxval), decode2 (num `mod` maxval))
         in
-          (newencode, newdecode)
+          (convertidx', newdecode)
       (Nothing, Nothing) ->
         let
-          newencode (val1, val2) =
+          convertidx' idx1 idx2 =
             let
-              encoded1 = encode1 val1
-              encoded2 = encode2 val2
-              sumval = encoded1 + encoded2
+              sumval = idx1 + idx2
               base = (((sumval + 1) * sumval)) `quot` 2
             in
-              base + encoded2
+              base + idx2
 
           newdecode num =
             let
@@ -992,7 +812,9 @@ mkPairCore Encoding { encEncode = encode1, encDecode = decode1,
             in
               (decode1 num1, decode2 num2)
         in
-          (newencode, newdecode)
+          (convertidx', newdecode)
+
+    encodefunc (val1, val2) = convertidx (encode1 val1) (encode2 val2)
 
     sizeval =
       do
@@ -1004,242 +826,85 @@ mkPairCore Encoding { encEncode = encode1, encDecode = decode1,
 
 -- | Take encodings for two datatypes A and B, and build an encoding
 -- for a pair (A, B).
-pair :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding (dim1, dim2) (ty1, ty2)
-pair enc1 @ Encoding { encInDomain = indomain1, encMaxDepth = maxDepth1,
-                       encDepth = depth1, encHighestIndex = highindex1 }
-     enc2 @ Encoding { encInDomain = indomain2, encMaxDepth = maxDepth2,
-                       encDepth = depth2, encHighestIndex = highindex2 } =
+pair :: Encoding ty1 -> Encoding ty2 -> Encoding (ty1, ty2)
+pair enc1 @ Encoding { encInDomain = indomain1 }
+     enc2 @ Encoding { encInDomain = indomain2 } =
   let
     (encodefunc, decodefunc, sizeval) = mkPairCore enc1 enc2
 
     indomainfunc (val1, val2) = indomain1 val1 && indomain2 val2
-    depthfunc (dim1, dim2) (val1, val2) = max (depth1 dim1 val1) (depth2 dim2 val2)
-
-    maxdepthfunc (dim1, dim2) =
-      do
-        maxdepthval1 <- maxDepth1 dim1
-        maxdepthval2 <- maxDepth2 dim2
-        return (max maxdepthval1 maxdepthval2)
-
-    highindexfunc (dim1, dim2) num =
-      do
-        idx1 <- highindex1 dim1 num
-        idx2 <- highindex2 dim2 num
-        return (max idx1 idx2)
   in
     Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc }
+               encSize = sizeval, encInDomain = indomainfunc }
 
--- | Take encodings for two datatypes A and B, and build an encoding
--- for a pair (A, B).
---
--- This variant uses the same dimension type as
--- its two components, making it suitable as a recursive construction.
-pair' :: Encoding dim ty1 -> Encoding dim ty2 -> Encoding dim (ty1, ty2)
-pair' enc1 @ Encoding { encInDomain = indomain1, encMaxDepth = maxDepth1,
-                        encDepth = depth1, encHighestIndex = highindex1 }
-      enc2 @ Encoding { encInDomain = indomain2, encMaxDepth = maxDepth2,
-                        encDepth = depth2, encHighestIndex = highindex2 } =
-  let
-    (encodefunc, decodefunc, sizeval) = mkPairCore enc1 enc2
-
-    indomainfunc (val1, val2) = indomain1 val1 && indomain2 val2
-    depthfunc dim (val1, val2) = max (depth1 dim val1) (depth2 dim val2)
-
-    maxdepthfunc dim =
-      do
-        maxdepthval1 <- maxDepth1 dim
-        maxdepthval2 <- maxDepth2 dim
-        return (max maxdepthval1 maxdepthval2)
-
-    highindexfunc dim num =
-      do
-        idx1 <- highindex1 dim num
-        idx2 <- highindex2 dim num
-        return (max idx1 idx2)
-  in
-    Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc }
 
 -- | Construct an encoding for a 3-tuple from the encodings for the
 -- three components.  This is actually just a wrapper around @pair@.
-triple :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
-          Encoding (dim1, dim2, dim3) (ty1, ty2, ty3)
+triple :: Encoding ty1 -> Encoding ty2 -> Encoding ty3 ->
+          Encoding (ty1, ty2, ty3)
 triple enc1 enc2 enc3 =
   let
     fwdshuffle (val1, val2, val3) = ((val1, val2), val3)
     revshuffle ((val1, val2), val3) = (val1, val2, val3)
 
     Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
+               encSize = sizeval, encInDomain = indomainfunc } =
       pair (pair enc1 enc2) enc3
 
     newencode = encodefunc . fwdshuffle
     newdecode = revshuffle . decodefunc
     newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
-    newmaxdepth = maxdepthfunc . fwdshuffle
-    newhighindex dim = highindexfunc (fwdshuffle dim)
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = newmaxdepth,
-               encHighestIndex = newhighindex }
-
--- | Construct an encoding for a 3-tuple from the encodings for the
--- three components.  This is actually just a wrapper around @pair@.
---
--- This variant uses the same dimension type as
--- its two components, making it suitable as a recursive construction.
-triple' :: Encoding dim ty1 -> Encoding dim ty2 -> Encoding dim ty3 ->
-           Encoding dim (ty1, ty2, ty3)
-triple' enc1 enc2 enc3 =
-  let
-    fwdshuffle (val1, val2, val3) = ((val1, val2), val3)
-    revshuffle ((val1, val2), val3) = (val1, val2, val3)
-
-    Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
-      pair' (pair' enc1 enc2) enc3
-
-    newencode = encodefunc . fwdshuffle
-    newdecode = revshuffle . decodefunc
-    newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc dim . fwdshuffle
-  in
-    Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc }
+               encSize = sizeval, encInDomain = newindomain }
 
 -- | Construct an encoding for a 4-tuple from the encodings for the
 -- four components.  This is actually just a wrapper around @pair@.
-quad :: Encoding dim1 ty1 -> Encoding dim2 ty2 ->
-        Encoding dim3 ty3 -> Encoding dim4 ty4 ->
-        Encoding (dim1, dim2, dim3, dim4) (ty1, ty2, ty3, ty4)
+quad :: Encoding ty1 -> Encoding ty2 -> Encoding ty3 -> Encoding ty4 ->
+        Encoding (ty1, ty2, ty3, ty4)
 quad enc1 enc2 enc3 enc4 =
   let
     fwdshuffle (val1, val2, val3, val4) = ((val1, val2), (val3, val4))
     revshuffle ((val1, val2), (val3, val4)) = (val1, val2, val3, val4)
 
     Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
+               encSize = sizeval, encInDomain = indomainfunc } =
       pair (pair enc1 enc2) (pair enc3 enc4)
 
     newencode = encodefunc . fwdshuffle
     newdecode = revshuffle . decodefunc
     newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
-    newmaxdepth = maxdepthfunc . fwdshuffle
-    newhighindex dim = highindexfunc (fwdshuffle dim)
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = newmaxdepth,
-               encHighestIndex = newhighindex }
+               encSize = sizeval, encInDomain = newindomain }
 
--- | Construct an encoding for a 4-tuple from the encodings for the
--- four components.  This is actually just a wrapper around @pair@.
---
--- This variant uses the same dimension type as
--- its two components, making it suitable as a recursive construction.
-quad' :: Encoding dim ty1 -> Encoding dim ty2 ->
-         Encoding dim ty3 -> Encoding dim ty4 ->
-         Encoding dim (ty1, ty2, ty3, ty4)
-quad' enc1 enc2 enc3 enc4 =
-  let
-    fwdshuffle (val1, val2, val3, val4) = ((val1, val2), (val3, val4))
-    revshuffle ((val1, val2), (val3, val4)) = (val1, val2, val3, val4)
-
-    Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
-      pair' (pair' enc1 enc2) (pair' enc3 enc4)
-
-    newencode = encodefunc . fwdshuffle
-    newdecode = revshuffle . decodefunc
-    newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc dim . fwdshuffle
-  in
-    Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc }
 
 -- | Construct an encoding for a 5-tuple from the encodings for the
 -- five components.  This is actually just a wrapper around @pair@.
-quint :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
-         Encoding dim4 ty4 -> Encoding dim5 ty5 ->
-         Encoding (dim1, dim2, dim3, dim4, dim5) (ty1, ty2, ty3, ty4, ty5)
+quint :: Encoding ty1 -> Encoding ty2 -> Encoding ty3 ->
+         Encoding ty4 -> Encoding ty5 ->
+         Encoding (ty1, ty2, ty3, ty4, ty5)
 quint enc1 enc2 enc3 enc4 enc5 =
   let
     fwdshuffle (val1, val2, val3, val4, val5) = (((val1, val2), val3), (val4, val5))
     revshuffle (((val1, val2), val3), (val4, val5)) = (val1, val2, val3, val4, val5)
 
     Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
+               encSize = sizeval, encInDomain = indomainfunc } =
       pair (pair (pair enc1 enc2) enc3) (pair enc4 enc5)
 
     newencode = encodefunc . fwdshuffle
     newdecode = revshuffle . decodefunc
     newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
-    newmaxdepth = maxdepthfunc . fwdshuffle
-    newhighindex dim = highindexfunc (fwdshuffle dim)
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = newmaxdepth,
-               encHighestIndex = newhighindex }
-
--- | Construct an encoding for a 5-tuple from the encodings for the
--- five components.  This is actually just a wrapper around @pair@.
---
--- This variant uses the same dimension type as
--- its two components, making it suitable as a recursive construction.
-quint' :: Encoding dim ty1 -> Encoding dim ty2 -> Encoding dim ty3 ->
-          Encoding dim ty4 -> Encoding dim ty5 ->
-          Encoding dim (ty1, ty2, ty3, ty4, ty5)
-quint' enc1 enc2 enc3 enc4 enc5 =
-  let
-    fwdshuffle (val1, val2, val3, val4, val5) = (((val1, val2), val3), (val4, val5))
-    revshuffle (((val1, val2), val3), (val4, val5)) = (val1, val2, val3, val4, val5)
-
-    Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
-      pair' (pair' (pair' enc1 enc2) enc3) (pair' enc4 enc5)
-
-    newencode = encodefunc . fwdshuffle
-    newdecode = revshuffle . decodefunc
-    newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc dim . fwdshuffle
-  in
-    Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc }
+               encSize = sizeval, encInDomain = newindomain }
 
 -- | Construct an encoding for a 6-tuple from the encodings for the
 -- six components.  This is actually just a wrapper around @pair@.
-sextet :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
-          Encoding dim4 ty4 -> Encoding dim5 ty5 -> Encoding dim6 ty6 ->
-          Encoding (dim1, dim2, dim3, dim4, dim5, dim6)
-                   (ty1, ty2, ty3, ty4, ty5, ty6)
+sextet :: Encoding ty1 -> Encoding ty2 -> Encoding ty3 ->
+          Encoding ty4 -> Encoding ty5 -> Encoding ty6 ->
+          Encoding (ty1, ty2, ty3, ty4, ty5, ty6)
 sextet enc1 enc2 enc3 enc4 enc5 enc6 =
   let
     fwdshuffle (val1, val2, val3, val4, val5, val6) =
@@ -1248,61 +913,21 @@ sextet enc1 enc2 enc3 enc4 enc5 enc6 =
       (val1, val2, val3, val4, val5, val6)
 
     Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
+               encSize = sizeval, encInDomain = indomainfunc } =
       pair (pair (pair enc1 enc2) enc3) (pair (pair enc4 enc5) enc6)
 
     newencode = encodefunc . fwdshuffle
     newdecode = revshuffle . decodefunc
     newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
-    newmaxdepth = maxdepthfunc . fwdshuffle
-    newhighindex dim = highindexfunc (fwdshuffle dim)
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = newmaxdepth,
-               encHighestIndex = newhighindex }
-
--- | Construct an encoding for a 6-tuple from the encodings for the
--- six components.  This is actually just a wrapper around @pair@.
---
--- This variant uses the same dimension type as
--- its two components, making it suitable as a recursive construction.
-sextet' :: Encoding dim ty1 -> Encoding dim ty2 -> Encoding dim ty3 ->
-           Encoding dim ty4 -> Encoding dim ty5 -> Encoding dim ty6 ->
-           Encoding dim (ty1, ty2, ty3, ty4, ty5, ty6)
-sextet' enc1 enc2 enc3 enc4 enc5 enc6 =
-  let
-    fwdshuffle (val1, val2, val3, val4, val5, val6) =
-      (((val1, val2), val3), ((val4, val5), val6))
-    revshuffle (((val1, val2), val3), ((val4, val5), val6)) =
-      (val1, val2, val3, val4, val5, val6)
-
-    Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
-      pair' (pair' (pair' enc1 enc2) enc3) (pair' (pair' enc4 enc5) enc6)
-
-    newencode = encodefunc . fwdshuffle
-    newdecode = revshuffle . decodefunc
-    newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc dim . fwdshuffle
-  in
-    Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc }
+               encSize = sizeval, encInDomain = newindomain }
 
 -- | Construct an encoding for a 7-tuple from the encodings for the
 -- seven components.  This is actually just a wrapper around @pair@.
-septet :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
-          Encoding dim4 ty4 -> Encoding dim5 ty5 ->
-          Encoding dim6 ty6 -> Encoding dim7 ty7 ->
-          Encoding (dim1, dim2, dim3, dim4, dim5, dim6, dim7)
-                   (ty1, ty2, ty3, ty4, ty5, ty6, ty7)
+septet :: Encoding ty1 -> Encoding ty2 -> Encoding ty3 -> Encoding ty4 ->
+          Encoding ty5 -> Encoding ty6 -> Encoding ty7 ->
+          Encoding (ty1, ty2, ty3, ty4, ty5, ty6, ty7)
 septet enc1 enc2 enc3 enc4 enc5 enc6 enc7 =
   let
     fwdshuffle (val1, val2, val3, val4, val5, val6, val7) =
@@ -1311,63 +936,22 @@ septet enc1 enc2 enc3 enc4 enc5 enc6 enc7 =
       (val1, val2, val3, val4, val5, val6, val7)
 
     Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
+               encSize = sizeval, encInDomain = indomainfunc } =
       pair (pair (pair enc1 enc2) (pair enc3 enc4)) (pair (pair enc5 enc6) enc7)
 
     newencode = encodefunc . fwdshuffle
     newdecode = revshuffle . decodefunc
     newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
-    newmaxdepth = maxdepthfunc . fwdshuffle
-    newhighindex dim = highindexfunc (fwdshuffle dim)
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = newmaxdepth,
-               encHighestIndex = newhighindex }
-
--- | Construct an encoding for a 7-tuple from the encodings for the
--- seven components.  This is actually just a wrapper around @pair@.
---
--- This variant uses the same dimension type as
--- its two components, making it suitable as a recursive construction.
-septet' :: Encoding dim ty1 -> Encoding dim ty2 -> Encoding dim ty3 ->
-           Encoding dim ty4 -> Encoding dim ty5 ->
-           Encoding dim ty6 -> Encoding dim ty7 ->
-           Encoding dim (ty1, ty2, ty3, ty4, ty5, ty6, ty7)
-septet' enc1 enc2 enc3 enc4 enc5 enc6 enc7 =
-  let
-    fwdshuffle (val1, val2, val3, val4, val5, val6, val7) =
-      (((val1, val2), (val3, val4)), ((val5, val6), val7))
-    revshuffle (((val1, val2), (val3, val4)), ((val5, val6), val7)) =
-      (val1, val2, val3, val4, val5, val6, val7)
-
-    Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
-      pair' (pair' (pair' enc1 enc2) (pair' enc3 enc4))
-            (pair' (pair' enc5 enc6) enc7)
-
-    newencode = encodefunc . fwdshuffle
-    newdecode = revshuffle . decodefunc
-    newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc dim . fwdshuffle
-  in
-    Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc }
+               encSize = sizeval, encInDomain = newindomain }
 
 -- | Construct an encoding for an 8-tuple from the encodings for the
 -- eight components.  This is actually just a wrapper around @pair@.
-octet :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
-         Encoding dim4 ty4 -> Encoding dim5 ty5 -> Encoding dim6 ty6 ->
-         Encoding dim7 ty7 -> Encoding dim8 ty8 ->
-         Encoding (dim1, dim2, dim3, dim4, dim5, dim6, dim7, dim8)
-                  (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8)
+octet :: Encoding ty1 -> Encoding ty2 -> Encoding ty3 ->
+         Encoding ty4 -> Encoding ty5 -> Encoding ty6 ->
+         Encoding ty7 -> Encoding ty8 ->
+         Encoding (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8)
 octet enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 =
   let
     fwdshuffle (val1, val2, val3, val4, val5, val6, val7, val8) =
@@ -1376,64 +960,23 @@ octet enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 =
       (val1, val2, val3, val4, val5, val6, val7, val8)
 
     Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
+               encSize = sizeval, encInDomain = indomainfunc } =
       pair (pair (pair enc1 enc2) (pair enc3 enc4))
            (pair (pair enc5 enc6) (pair enc7 enc8))
 
     newencode = encodefunc . fwdshuffle
     newdecode = revshuffle . decodefunc
     newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
-    newmaxdepth = maxdepthfunc . fwdshuffle
-    newhighindex dim = highindexfunc (fwdshuffle dim)
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = newmaxdepth,
-               encHighestIndex = newhighindex }
-
--- | Construct an encoding for an 8-tuple from the encodings for the
--- eight components.  This is actually just a wrapper around @pair@.
---
--- This variant uses the same dimension type as
--- its two components, making it suitable as a recursive construction.
-octet' :: Encoding dim ty1 -> Encoding dim ty2 -> Encoding dim ty3 ->
-          Encoding dim ty4 -> Encoding dim ty5 -> Encoding dim ty6 ->
-          Encoding dim ty7 -> Encoding dim ty8 ->
-          Encoding dim (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8)
-octet' enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 =
-  let
-    fwdshuffle (val1, val2, val3, val4, val5, val6, val7, val8) =
-      (((val1, val2), (val3, val4)), ((val5, val6), (val7, val8)))
-    revshuffle (((val1, val2), (val3, val4)), ((val5, val6), (val7, val8))) =
-      (val1, val2, val3, val4, val5, val6, val7, val8)
-
-    Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
-      pair' (pair' (pair' enc1 enc2) (pair' enc3 enc4))
-            (pair' (pair' enc5 enc6) (pair' enc7 enc8))
-
-    newencode = encodefunc . fwdshuffle
-    newdecode = revshuffle . decodefunc
-    newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc dim . fwdshuffle
-  in
-    Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc }
+               encSize = sizeval, encInDomain = newindomain }
 
 -- | Construct an encoding for a 9-tuple from the encodings for the
 -- nine components.  This is actually just a wrapper around @pair@.
-nonet :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
-         Encoding dim4 ty4 -> Encoding dim5 ty5 -> Encoding dim6 ty6 ->
-         Encoding dim7 ty7 -> Encoding dim8 ty8 -> Encoding dim9 ty9 ->
-         Encoding (dim1, dim2, dim3, dim4, dim5, dim6, dim7, dim8, dim9)
-                  (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8, ty9)
+nonet :: Encoding ty1 -> Encoding ty2 -> Encoding ty3 -> Encoding ty4 ->
+         Encoding ty5 -> Encoding ty6 -> Encoding ty7 ->
+         Encoding ty8 -> Encoding ty9 ->
+         Encoding (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8, ty9)
 nonet enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 enc9 =
   let
     fwdshuffle (val1, val2, val3, val4, val5, val6, val7, val8, val9) =
@@ -1442,65 +985,23 @@ nonet enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 enc9 =
       (val1, val2, val3, val4, val5, val6, val7, val8, val9)
 
     Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
+               encSize = sizeval, encInDomain = indomainfunc } =
       pair (pair (pair (pair enc1 enc2) enc3) (pair enc4 enc5))
            (pair (pair enc6 enc7) (pair enc8 enc9))
 
     newencode = encodefunc . fwdshuffle
     newdecode = revshuffle . decodefunc
     newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
-    newmaxdepth = maxdepthfunc . fwdshuffle
-    newhighindex dim = highindexfunc (fwdshuffle dim)
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = newmaxdepth,
-               encHighestIndex = newhighindex }
-
--- | Construct an encoding for a 9-tuple from the encodings for the
--- nine components.  This is actually just a wrapper around @pair@.
---
--- This variant uses the same dimension type as
--- its two components, making it suitable as a recursive construction.
-nonet' :: Encoding dim ty1 -> Encoding dim ty2 -> Encoding dim ty3 ->
-          Encoding dim ty4 -> Encoding dim ty5 -> Encoding dim ty6 ->
-          Encoding dim ty7 -> Encoding dim ty8 -> Encoding dim ty9 ->
-          Encoding dim (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8, ty9)
-nonet' enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 enc9 =
-  let
-    fwdshuffle (val1, val2, val3, val4, val5, val6, val7, val8, val9) =
-      ((((val1, val2), val3), (val4, val5)), ((val6, val7), (val8, val9)))
-    revshuffle ((((val1, val2), val3), (val4, val5)), ((val6, val7), (val8, val9))) =
-      (val1, val2, val3, val4, val5, val6, val7, val8, val9)
-
-    Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
-      pair' (pair' (pair' (pair' enc1 enc2) enc3) (pair' enc4 enc5))
-            (pair' (pair' enc6 enc7) (pair' enc8 enc9))
-
-    newencode = encodefunc . fwdshuffle
-    newdecode = revshuffle . decodefunc
-    newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc dim . fwdshuffle
-  in
-    Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc }
+               encSize = sizeval, encInDomain = newindomain }
 
 -- | Construct an encoding for a 10-tuple from the encodings for the
 -- ten components.  This is actually just a wrapper around @pair@.
-dectet :: Encoding dim1 ty1 -> Encoding dim2 ty2 -> Encoding dim3 ty3 ->
-          Encoding dim4 ty4 -> Encoding dim5 ty5 -> Encoding dim6 ty6 ->
-          Encoding dim7 ty7 -> Encoding dim8 ty8 ->
-          Encoding dim9 ty9 -> Encoding dim10 ty10 ->
-          Encoding (dim1, dim2, dim3, dim4, dim5, dim6, dim7, dim8, dim9, dim10)
-                   (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8, ty9, ty10)
+dectet :: Encoding ty1 -> Encoding ty2 -> Encoding ty3 -> Encoding ty4 ->
+          Encoding ty5 -> Encoding ty6 -> Encoding ty7 ->
+          Encoding ty8 -> Encoding ty9 -> Encoding ty10 ->
+          Encoding (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8, ty9, ty10)
 dectet enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 enc9 enc10 =
   let
     fwdshuffle (val1, val2, val3, val4, val5, val6, val7, val8, val9, val10) =
@@ -1510,72 +1011,105 @@ dectet enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 enc9 enc10 =
       (val1, val2, val3, val4, val5, val6, val7, val8, val9, val10)
 
     Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
+               encSize = sizeval, encInDomain = indomainfunc } =
       pair (pair (pair (pair enc1 enc2) enc3) (pair enc4 enc5))
            (pair (pair (pair enc6 enc7) enc8) (pair enc9 enc10))
 
     newencode = encodefunc . fwdshuffle
     newdecode = revshuffle . decodefunc
     newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc (fwdshuffle dim) . fwdshuffle
-    newmaxdepth = maxdepthfunc . fwdshuffle
-    newhighindex dim = highindexfunc (fwdshuffle dim)
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = newmaxdepth,
-               encHighestIndex = newhighindex }
+               encSize = sizeval, encInDomain = newindomain }
 
--- | Construct an encoding for a 10-tuple from the encodings for the
--- ten components.  This is actually just a wrapper around @pair@.
---
--- This variant uses the same dimension type as
--- its two components, making it suitable as a recursive construction.
-dectet' :: Encoding dim ty1 -> Encoding dim ty2 -> Encoding dim ty3 ->
-           Encoding dim ty4 -> Encoding dim ty5 -> Encoding dim ty6 ->
-           Encoding dim ty7 -> Encoding dim ty8 ->
-           Encoding dim ty9 -> Encoding dim ty10 ->
-           Encoding dim (ty1, ty2, ty3, ty4, ty5, ty6, ty7, ty8, ty9, ty10)
-dectet' enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 enc9 enc10 =
+{-
+-- | Common idiom in bounded sets and sequences: take an entropy value
+-- and generate a list of entropy values of a particular length.
+toProdList :: Integer -> Integer -> [Integer]
+toProdList =
   let
-    fwdshuffle (val1, val2, val3, val4, val5, val6, val7, val8, val9, val10) =
-      ((((val1, val2), val3), (val4, val5)), (((val6, val7), val8), (val9, val10)))
-    revshuffle ((((val1, val2), val3), (val4, val5)),
-                (((val6, val7), val8), (val9, val10))) =
-      (val1, val2, val3, val4, val5, val6, val7, val8, val9, val10)
-
-    Encoding { encEncode = encodefunc, encDecode = decodefunc,
-               encSize = sizeval, encInDomain = indomainfunc,
-               encDepth = depthfunc, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc } =
-      pair' (pair' (pair' (pair' enc1 enc2) enc3) (pair' enc4 enc5))
-            (pair' (pair' (pair' enc6 enc7) enc8) (pair' enc9 enc10))
-
-    newencode = encodefunc . fwdshuffle
-    newdecode = revshuffle . decodefunc
-    newindomain = indomainfunc . fwdshuffle
-    newdepth dim = depthfunc dim . fwdshuffle
+    productList' accum 0 0 = accum
+    productList' accum 0 _ = error "Leftover entropy"
+    productList' accum count entropy =
+      let
+        sumval = (isqrt ((8 * entropy) + 1) - 1) `quot` 2
+        base = (((sumval + 1) * sumval)) `quot` 2
+        num2 = entropy - base
+        num1 = sumval - num2
+      in
+        productList' (num1 : accum) (count - 1) num2
   in
-    Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = sizeval, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = maxdepthfunc,
-               encHighestIndex = highindexfunc }
+    productList' []
 
--- | A datatype representing the dimensions of a set.
-data SetDim dim =
-    -- | A dimension representing the size of the set.
-    SetSize
-    -- | A dimension representing the dimensions of the elements.  The
-    -- depth of a set in a given element dimension is the maximum of
-    -- the depths of all its elements in that dimension.
-  | SetElem dim
+fromProdList :: [Integer] -> Integer
+fromProdList [] = error "Should not see an empty list here"
+fromProdList (first : vals) =
+  let
+    fromProdList accum [] = accum
+  in
+    fromProdList first vals
 
-setCore :: Ord ty => Encoding dim ty -> (Set ty -> Integer, Integer -> Set ty,
-                                         Maybe Integer, Set ty -> Bool)
-setCore Encoding { encEncode = encodefunc, encDecode = decodefunc,
-                   encSize = sizeval, encInDomain = indomainfunc } =
+-- | Take an @Encoding@ for elements and a length and produce an
+-- @Encoding@ for lists of exactly that length.
+--
+-- This differs from 'boundedSeq' in that the resulting list is
+-- /exactly/ the given length, as opposed to upper-bounded by it.
+power :: Integer
+      -- ^ Number of elements in the resulting lists
+      -> Encoding dim ty
+      -- ^ @Encoding@ for the elements
+      -> Encoding dim [ty]
+power len Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                     encSize = sizeval, encInDomain = indomain,
+                     encMaxDepth = maxDepth, encDepth = depth,
+                     encHighestIndex = highindex } =
+  let
+    (newencode, newdecode, newsize, newhighindex) =
+      case sizeval of
+        Just finitesize ->
+          let
+            newencode' accum [] = accum
+            newencode' accum (head : rest) =
+              newencode' ((accum * len) + encodefunc head) rest
+
+            newdecode' accum 0 0 = accum
+            newdecode' _ 0 _ = error "Entropy remaining at end of power decoding"
+            newdecode' accum count entropy =
+              let
+                thisentropy = entropy `mod` len
+                restentropy = entropy `quot` len
+                this = decodefunc thisentropy
+              in
+                newdecode' (decodefunc (this : accum) (count - 1) restentropy)
+
+            newhighindex' dim depthval =
+              (finitesize ^ (len - 1)) + highindex dim depthval
+          in
+            (newencode' 0, newdecode' [] len, finitesize ^ len, newhighindex')
+        Nothing ->
+          let
+            newencode' = fromProdList . map encodefunc
+            newdecode' = map decodefunc . toProdList len
+          in
+            (newencode', newdecode', Nothing)
+
+    newdepth = maximum . map depthfunc
+  in
+    Encode { encEncode = newencode, encDecode = newdecode,
+             encSize = newsize, encInDomain = newindomain,
+             encDepth = newdepth, encMaxDepth = maxDepth,
+             encHighestIndex = newhighindex }
+
+-}
+
+-- | Build an encoding for /finite/ sets of values of a given datatype
+-- from an encoding for that datatype.
+--
+-- Note: this encoding and its variants can produce very large numbers
+-- for a very small set.
+set :: Ord ty => Encoding ty -> Encoding (Set ty)
+set Encoding { encEncode = encodefunc, encDecode = decodefunc,
+               encSize = sizeval, encInDomain = indomainfunc } =
   let
     newEncode = Set.foldl (\n -> setBit n . fromInteger . encodefunc) 0
 
@@ -1596,135 +1130,16 @@ setCore Encoding { encEncode = encodefunc, encDecode = decodefunc,
 
     newInDomain = all indomainfunc . Set.toList
   in
-    (newEncode, newDecode, newSize, newInDomain)
+    Encoding { encEncode = newEncode, encDecode = newDecode,
+               encSize = newSize, encInDomain = newInDomain }
 
 -- | Build an encoding for /finite/ sets of values of a given datatype
--- from an encoding for that datatype.
---
--- Note: this encoding and its variants can produce very large numbers
--- for a very small set.
-set :: Ord ty => Encoding dim ty -> Encoding (SetDim dim) (Set ty)
-set enc @ Encoding { encDepth = depthfunc, encHighestIndex = highindexfunc,
-                     encSize = sizeval, encMaxDepth = maxdepthfunc } =
-  let
-    (newEncode, newDecode, newSize, newInDomain) = setCore enc
-
-    newDepth SetSize = toInteger . Set.size
-    newDepth (SetElem dim) =
-      let
-        foldfun m elem =
-          let
-            n = depthfunc dim elem
-          in
-            (max n m)
-      in
-        Set.foldl foldfun 0
-
-    newMaxDepth SetSize = sizeval
-    newMaxDepth (SetElem dim) = maxdepthfunc dim
-
-    -- Pick the right implementation based on whether or not the
-    -- underlying encoding is infinite
-    newHighestIndex =
-      case sizeval of
-        Just setsize ->
-          let
-            newHighestIndex' SetSize 0 = Just 0
-            newHighestIndex' SetSize n
-              | n <= setsize =
-                Just (((2 ^ n) - 1 :: Integer) `shiftL`
-                        fromInteger (setsize - n))
-              | otherwise = throw (IllegalArgument "Set size is too big")
-            newHighestIndex' (SetElem dim) n =
-              do
-                idx <- highindexfunc dim n
-                return (2 ^ idx)
-          in
-            newHighestIndex'
-        Nothing ->
-          -- For the infinite case, there is no highest index for a
-          -- set of a given size.
-          let
-            newHighestIndex' SetSize 0 = Just 0
-            newHighestIndex' SetSize _ = Nothing
-            newHighestIndex' (SetElem dim) n =
-              do
-                idx <- highindexfunc dim n
-                return (2 ^ idx)
-          in
-            newHighestIndex'
-  in
-    Encoding { encEncode = newEncode, encDecode = newDecode,
-               encSize = newSize, encInDomain = newInDomain,
-               encDepth = newDepth, encMaxDepth = newMaxDepth,
-               encHighestIndex = newHighestIndex }
-
--- | Build an encoding for /finite/ sets of values of a given datatype
--- from an encoding for that datatype.
---
--- In this variant, the component type must be a @SetDim@, making it
--- suitable as a recursive construction.
-set' :: Ord ty => Encoding (SetDim dim) ty -> Encoding (SetDim dim) (Set ty)
-set' enc @ Encoding { encDepth = depthfunc, encHighestIndex = highindexfunc,
-                      encSize = sizeval, encMaxDepth = maxdepthfunc } =
-  let
-    (newEncode, newDecode, newSize, newInDomain) = setCore enc
-
-    newDepth SetSize = toInteger . Set.size
-    newDepth dim =
-      let
-        foldfun m elem =
-          let
-            n = depthfunc dim elem
-          in
-            (max n m)
-      in
-        Set.foldl foldfun 0
-
-    newMaxDepth SetSize = sizeval
-    newMaxDepth dim = maxdepthfunc dim
-
-    -- Pick the right implementation based on whether or not the
-    -- underlying encoding is infinite
-    newHighestIndex =
-      case sizeval of
-        Just setsize ->
-          let
-            newHighestIndex' SetSize 0 = Just 0
-            newHighestIndex' SetSize n
-              | n <= setsize =
-                Just (((2 ^ n) - 1 :: Integer) `shiftL`
-                        fromInteger (setsize - n))
-              | otherwise = throw (IllegalArgument "Set size is too big")
-            newHighestIndex' dim n =
-              do
-                idx <- highindexfunc dim n
-                return (2 ^ idx)
-          in
-            newHighestIndex'
-        Nothing ->
-          -- For the infinite case, there is no highest index for a
-          -- set of a given size.
-          let
-            newHighestIndex' SetSize 0 = Just 0
-            newHighestIndex' SetSize _ = Nothing
-            newHighestIndex' dim n =
-              do
-                idx <- highindexfunc dim n
-                return (2 ^ idx)
-          in
-            newHighestIndex'
-  in
-    Encoding { encEncode = newEncode, encDecode = newDecode,
-               encSize = newSize, encInDomain = newInDomain,
-               encDepth = newDepth, encMaxDepth = newMaxDepth,
-               encHighestIndex = newHighestIndex }
-
-hashSetCore :: (Hashable ty, Ord ty) => Encoding dim ty ->
-               (HashSet.Set ty -> Integer, Integer -> HashSet.Set ty,
-                Maybe Integer, HashSet.Set ty -> Bool)
-hashSetCore Encoding { encEncode = encodefunc, encDecode = decodefunc,
-                       encSize = sizeval, encInDomain = indomainfunc } =
+-- from an encoding for that datatype.  Similar to @set@, but uses
+-- @HashSet@ instead
+hashSet :: (Hashable ty, Ord ty) =>
+           Encoding ty -> Encoding (HashSet.Set ty)
+hashSet Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                   encSize = sizeval, encInDomain = indomainfunc } =
   let
     newEncode =
       HashSet.fold (\elem n -> setBit n (fromInteger (encodefunc elem))) 0
@@ -1747,144 +1162,10 @@ hashSetCore Encoding { encEncode = encodefunc, encDecode = decodefunc,
 
     newInDomain = all indomainfunc . HashSet.toList
   in
-    (newEncode, newDecode, newSize, newInDomain)
-
--- | Build an encoding for /finite/ sets of values of a given datatype
--- from an encoding for that datatype.  Similar to @set@, but uses
--- @HashSet@ instead
-hashSet :: (Hashable ty, Ord ty) =>
-           Encoding dim ty -> Encoding (SetDim dim) (HashSet.Set ty)
-hashSet enc @ Encoding { encSize = sizeval, encDepth = depthfunc,
-                         encMaxDepth = maxdepthfunc,
-                         encHighestIndex = highindexfunc } =
-  let
-    (newEncode, newDecode, newSize, newInDomain) = hashSetCore enc
-
-    newDepth SetSize = toInteger . HashSet.size
-    newDepth (SetElem dim) =
-      let
-        foldfun elem m =
-          let
-            n = depthfunc dim elem
-          in
-            (max n m)
-      in
-        HashSet.fold foldfun 0
-
-    newMaxDepth SetSize = sizeval
-    newMaxDepth (SetElem dim) = maxdepthfunc dim
-
-    -- Pick the right implementation based on whether or not the
-    -- underlying encoding is infinite
-    newHighestIndex =
-      case sizeval of
-        Just setsize ->
-          let
-            newHighestIndex' SetSize 0 = Just 0
-            newHighestIndex' SetSize n
-              | n <= setsize =
-                Just (((2 ^ n) - 1 :: Integer) `shiftL`
-                        fromInteger (setsize - n))
-              | otherwise = throw (IllegalArgument "Set size is too big")
-            newHighestIndex' (SetElem dim) n =
-              do
-                idx <- highindexfunc dim n
-                return (2 ^ idx)
-          in
-            newHighestIndex'
-        Nothing ->
-          -- For the infinite case, there is no highest index for a
-          -- set of a given size.
-          let
-            newHighestIndex' SetSize 0 = Just 0
-            newHighestIndex' SetSize _ = Nothing
-            newHighestIndex' (SetElem dim) n =
-              do
-                idx <- highindexfunc dim n
-                return (2 ^ idx)
-          in
-            newHighestIndex'
-  in
     Encoding { encEncode = newEncode, encDecode = newDecode,
-               encSize = newSize, encInDomain = newInDomain,
-               encDepth = newDepth, encMaxDepth = newMaxDepth,
-               encHighestIndex = newHighestIndex }
+               encSize = newSize, encInDomain = newInDomain }
 
--- | Build an encoding for /finite/ sets of values of a given datatype
--- from an encoding for that datatype.  Similar to @set@, but uses
--- @HashSet@ instead
---
--- In this variant, the component type must be a @SetDim@, making it
--- suitable as a recursive construction.
-hashSet' :: (Hashable ty, Ord ty) =>
-            Encoding (SetDim dim) ty -> Encoding (SetDim dim) (HashSet.Set ty)
-hashSet' enc @ Encoding { encSize = sizeval, encDepth = depthfunc,
-                          encMaxDepth = maxdepthfunc,
-                          encHighestIndex = highindexfunc } =
-  let
-    (newEncode, newDecode, newSize, newInDomain) = hashSetCore enc
-
-    newDepth SetSize = toInteger . HashSet.size
-    newDepth dim =
-      let
-        foldfun elem m =
-          let
-            n = depthfunc dim elem
-          in
-            (max n m)
-      in
-        HashSet.fold foldfun 0
-
-    newMaxDepth SetSize = sizeval
-    newMaxDepth dim = maxdepthfunc dim
-
-    -- Pick the right implementation based on whether or not the
-    -- underlying encoding is infinite
-    newHighestIndex =
-      case sizeval of
-        Just setsize ->
-          let
-            newHighestIndex' SetSize 0 = Just 0
-            newHighestIndex' SetSize n
-              | n <= setsize =
-                Just (((2 ^ n) - 1 :: Integer) `shiftL`
-                        fromInteger (setsize - n))
-              | otherwise = throw (IllegalArgument "Set size is too big")
-            newHighestIndex' dim n =
-              do
-                idx <- highindexfunc dim n
-                return (2 ^ idx)
-          in
-            newHighestIndex'
-        Nothing ->
-          -- For the infinite case, there is no highest index for a
-          -- set of a given size.
-          let
-            newHighestIndex' SetSize 0 = Just 0
-            newHighestIndex' SetSize _ = Nothing
-            newHighestIndex' dim n =
-              do
-                idx <- highindexfunc dim n
-                return (2 ^ idx)
-          in
-            newHighestIndex'
-  in
-    Encoding { encEncode = newEncode, encDecode = newDecode,
-               encSize = newSize, encInDomain = newInDomain,
-               encDepth = newDepth, encMaxDepth = newMaxDepth,
-               encHighestIndex = newHighestIndex }
-
--- | Dimension constructor for sequences.  Adds a dimension
--- representing length.
-data SeqDim dim =
-  -- | A Dimension representing the length of the sequence.
-    SeqLen
-  -- | A dimension representing the dimensions of the elements.  The
-  -- depth of a set in a given element dimension is the maximum of
-  -- the depths of all its elements in that dimension.
-  | SeqElem dim
-
-seqCore :: Encoding dim ty -> ([ty] -> Integer, Integer -> [ty])
+seqCore :: Encoding ty -> ([ty] -> Integer, Integer -> [ty])
 seqCore Encoding { encEncode = encodefunc, encDecode = decodefunc,
                    encSize = sizeval } =
   case sizeval of
@@ -1974,656 +1255,507 @@ seqCore Encoding { encEncode = encodefunc, encDecode = decodefunc,
 --
 -- Note: This encoding can produce very large numbers for short
 -- sequences.
-seq :: Encoding dim ty -> Encoding (SeqDim dim) [ty]
-seq enc @ Encoding { encInDomain = indomainfunc, encSize = sizeval,
-                     encDepth = depthfunc, encMaxDepth = maxdepthfunc } =
+seq :: Encoding ty -> Encoding [ty]
+seq enc @ Encoding { encInDomain = indomainfunc } =
   let
     (newEncode, newDecode) = seqCore enc
     newInDomain = all indomainfunc
-
-    newHighestIndex =
-      case sizeval of
-        Just finitesize ->
-          let
-            withendsize = finitesize + 1
-
-            newhighindexfunc SeqLen n = Just (n * withendsize)
-            newhighindexfunc (SeqElem _) _ = Nothing
-          in
-            newhighindexfunc
-        Nothing ->
-          let
-            newhighindexfunc SeqLen 0 = Just 0
-            newhighindexfunc _ _ = Nothing
-          in
-            newhighindexfunc
-
-    newDepth SeqLen val = toInteger (length val)
-    newDepth (SeqElem _) [] = 0
-    newDepth (SeqElem dim) val = maximum (map (depthfunc dim) val)
-
-    newMaxDepth SeqLen = Nothing
-    newMaxDepth (SeqElem dim) = maxdepthfunc dim
-
   in
     Encoding { encEncode = newEncode, encDecode = newDecode,
-               encSize = Nothing, encInDomain = newInDomain,
-               encDepth = newDepth, encMaxDepth = newMaxDepth,
-               encHighestIndex = newHighestIndex }
+               encSize = Nothing, encInDomain = newInDomain }
 
--- | Construct an encoding for sequences of a type from an encoding
--- for values of that type.
---
--- In this variant, the component type must be a @SeqDim@, making it
--- suitable as a recursive construction.
-seq' :: Encoding (SeqDim dim) ty -> Encoding (SeqDim dim) [ty]
-seq' enc @ Encoding { encInDomain = indomainfunc, encSize = sizeval,
-                      encDepth = depthfunc, encMaxDepth = maxdepthfunc } =
+{-
+-- | Sum of finite geometric series
+geometricSum :: Integer -> Integer -> Integer
+geometricSum len base = (1 - base ^ (len + 1)) `quot` (1 - base)
+
+-- | Integer logarithm (for base b and n, find largest i such that b^i
+-- <= n)
+ilog n = toInteger . integerLogBase' n
+
+boundedSeqCore :: Integer -> Encoding dim ty -> ([ty] -> Integer, Integer -> [ty])
+boundedSeqCore len Encoding { encEncode = encodefunc, encDecode = decodefunc,
+                              encSize = sizeval } =
+  case sizeval of
+    Nothing ->
+      let
+        newencode [] = 0
+        newencode vals =
+          let
+            thislen = toInteger (length vals)
+            contentnum = fromProdList (map encodefunc vals)
+          in
+            (contentnum * len) + thislen
+
+        newdecode 0 = []
+        newdecode num =
+          let
+            adjusted = num - 1
+            thislen = adjusted `mod` len
+            contentnum = adjusted `quot` len
+          in
+            map decodefunc (toProdList contentnum thislen)
+      in
+        (newencode, newdecode)
+    Just finitesize ->
+      let
+        newencode [] = 0
+        newencode vals =
+          let
+            thislen = toInteger (length vals)
+            base = geometricSum (thislen - 1) finitesize
+          in
+            base + (fromProdList (map encodefunc vals))
+
+        newdecode 0 = []
+        newdecode num =
+          let
+            lowlen = (ilog finitesize num)
+            thislen = lowlen + 1
+            contentnum = num - (geometricSum lowlen finitesize)
+          in
+            map decodefunc (toProdList contentnum thislen)
+      in
+        (newencode, newdecode)
+
+-- | Construct an encoding for sequences whose length is bounded by a
+-- given value from an encoding for elements of the sequence.
+boundedSeq :: Integer
+           -- ^ The maximum length of the sequence
+           -> Encoding dim ty
+           -- ^ The @Encoding@ for the sequence elements
+           -> Encoding (SeqDim dim) [ty]
+boundedSeq len enc @ Encoding { encSize = sizeval, encInDomain = indomainfunc,
+                                encDepth = depthfunc, encMaxDepth = maxdepthfunc,
+                                encHighestIndex = highindexfunc } =
   let
-    (newEncode, newDecode) = seqCore enc
-    newInDomain = all indomainfunc
+    (newencode, newdecode) = boundedSeqCore len enc
+    newsize = sizeval >>= geometricSum len
+    newindomain vals = length vals <= fromInteger len && all indomainfunc vals
 
-    newHighestIndex =
-      case sizeval of
-        Just finitesize ->
-          let
-            withendsize = finitesize + 1
+    newdepth SeqLen = length
+    newdepth (SeqElem dim) = maximum . map (depthfunc dim)
 
-            newhighindexfunc SeqLen n = Just (n * withendsize)
-            newhighindexfunc (SeqElem _) _ = Nothing
-          in
-            newhighindexfunc
-        Nothing ->
-          let
-            newhighindexfunc SeqLen 0 = Just 0
-            newhighindexfunc _ _ = Nothing
-          in
-            newhighindexfunc
-
-    newDepth SeqLen val = toInteger (length val)
-    newDepth (SeqElem _) [] = 0
-    newDepth dim val = maximum (map (depthfunc dim) val)
-
-    newMaxDepth SeqLen = Nothing
-    newMaxDepth dim = maxdepthfunc dim
-
+    newmaxdepth SeqLen = len
+    newmaxdepth (SeqElem dim) = maxdepthfunc dim
   in
-    Encoding { encEncode = newEncode, encDecode = newDecode,
-               encSize = Nothing, encInDomain = newInDomain,
-               encDepth = newDepth, encMaxDepth = newMaxDepth,
-               encHighestIndex = newHighestIndex }
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = size, encInDomain = newindomain,
+               encDepth = newdepth, encMaxDepth = newmaxdepth,
+               encHighestIndex = newhighindex }
 
+boundedSeq' :: Integer
+            -- ^ The maximum length of the sequence
+            -> Encoding (SeqDim dim) ty
+            -- ^ The @Encoding@ for the sequence elements
+            -> Encoding (SeqDim dim) [ty]
+-}
 -- | Take a function which takes a self-reference and produces a
 -- recursive encoding, and produce the fixed-point encoding.
-recursive :: (Encoding dim ty -> Encoding dim ty)
+recursive :: (Encoding ty -> Encoding ty)
           -- ^ A function that, given a self-reference,
           -- constructs an encoding.
-          -> Encoding dim ty
+          -> Encoding ty
 recursive genfunc =
   let
     enc = Encoding { encEncode = encode (genfunc enc),
                      encDecode = decode (genfunc enc),
                      encInDomain = inDomain (genfunc enc),
-                     encDepth = depth (genfunc enc),
-                     encMaxDepth = maxDepth (genfunc enc),
-                     encSize = Nothing,
-                     encHighestIndex = const (const Nothing) }
+                     encSize = Nothing }
   in
     enc
 
 -- | A recursive construction for two mutually-recursive constructions.
-recursive2 :: ((Encoding dim ty1, Encoding dim ty2) -> Encoding dim ty1)
+recursive2 :: ((Encoding ty1, Encoding ty2) -> Encoding ty1)
            -- ^ A function that, given self-references to both encodings,
            -- constructs the first encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2) -> Encoding dim ty2)
+           -> ((Encoding ty1, Encoding ty2) -> Encoding ty2)
            -- ^ A function that, given self-references to both encodings,
            -- constructs the second encoding.
-           -> (Encoding dim ty1, Encoding dim ty2)
+           -> (Encoding ty1, Encoding ty2)
 recursive2 genfunc1 genfunc2 =
   let
     encs =
       (Encoding { encEncode = encode (genfunc1 encs),
                   encDecode = decode (genfunc1 encs),
                   encInDomain = inDomain (genfunc1 encs),
-                  encDepth = depth (genfunc1 encs),
-                  encMaxDepth = maxDepth (genfunc1 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc2 encs),
                   encDecode = decode (genfunc2 encs),
                   encInDomain = inDomain (genfunc2 encs),
-                  encDepth = depth (genfunc2 encs),
-                  encMaxDepth = maxDepth (genfunc2 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) })
+                  encSize = Nothing })
   in
     encs
 
 -- | A recursive construction for three mutually-recursive constructions.
-recursive3 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3) ->
-               Encoding dim ty1)
+recursive3 :: ((Encoding ty1, Encoding ty2, Encoding ty3) -> Encoding ty1)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the first encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3) ->
-               Encoding dim ty2)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3) -> Encoding ty2)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the second encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3) ->
-               Encoding dim ty3)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3) -> Encoding ty3)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the third encoding.
-           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3)
+           -> (Encoding ty1, Encoding ty2, Encoding ty3)
 recursive3 genfunc1 genfunc2 genfunc3 =
   let
     encs =
       (Encoding { encEncode = encode (genfunc1 encs),
                   encDecode = decode (genfunc1 encs),
                   encInDomain = inDomain (genfunc1 encs),
-                  encDepth = depth (genfunc1 encs),
-                  encMaxDepth = maxDepth (genfunc1 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc2 encs),
                   encDecode = decode (genfunc2 encs),
                   encInDomain = inDomain (genfunc2 encs),
-                  encDepth = depth (genfunc2 encs),
-                  encMaxDepth = maxDepth (genfunc2 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc3 encs),
                   encDecode = decode (genfunc3 encs),
                   encInDomain = inDomain (genfunc3 encs),
-                  encDepth = depth (genfunc3 encs),
-                  encMaxDepth = maxDepth (genfunc3 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) })
+                  encSize = Nothing })
   in
     encs
 
 -- | A recursive construction for four mutually-recursive constructions.
-recursive4 :: ((Encoding dim ty1, Encoding dim ty2,
-                Encoding dim ty3, Encoding dim ty4) ->
-               Encoding dim ty1)
+recursive4 :: ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4) ->
+               Encoding ty1)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the first encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2,
-                Encoding dim ty3, Encoding dim ty4) ->
-               Encoding dim ty2)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4) ->
+               Encoding ty2)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the second encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2,
-                Encoding dim ty3, Encoding dim ty4) ->
-               Encoding dim ty3)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4) ->
+               Encoding ty3)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the third encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2,
-                Encoding dim ty3, Encoding dim ty4) ->
-               Encoding dim ty4)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4) ->
+               Encoding ty4)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the fourth encoding.
-           -> (Encoding dim ty1, Encoding dim ty2,
-               Encoding dim ty3, Encoding dim ty4)
+           -> (Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4)
 recursive4 genfunc1 genfunc2 genfunc3 genfunc4 =
   let
     encs =
       (Encoding { encEncode = encode (genfunc1 encs),
                   encDecode = decode (genfunc1 encs),
                   encInDomain = inDomain (genfunc1 encs),
-                  encDepth = depth (genfunc1 encs),
-                  encMaxDepth = maxDepth (genfunc1 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc2 encs),
                   encDecode = decode (genfunc2 encs),
                   encInDomain = inDomain (genfunc2 encs),
-                  encDepth = depth (genfunc2 encs),
-                  encMaxDepth = maxDepth (genfunc2 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc3 encs),
                   encDecode = decode (genfunc3 encs),
                   encInDomain = inDomain (genfunc3 encs),
-                  encDepth = depth (genfunc3 encs),
-                  encMaxDepth = maxDepth (genfunc3 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc4 encs),
                   encDecode = decode (genfunc4 encs),
                   encInDomain = inDomain (genfunc4 encs),
-                  encDepth = depth (genfunc4 encs),
-                  encMaxDepth = maxDepth (genfunc4 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) })
+                  encSize = Nothing })
   in
     encs
 
 -- | A recursive construction for five mutually-recursive constructions.
-recursive5 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5) ->
-               Encoding dim ty1)
+recursive5 :: ((Encoding ty1, Encoding ty2, Encoding ty3,
+                Encoding ty4, Encoding ty5) -> Encoding ty1)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the first encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5) ->
-               Encoding dim ty2)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3,
+                Encoding ty4, Encoding ty5) -> Encoding ty2)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the second encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5) ->
-               Encoding dim ty3)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3,
+                Encoding ty4, Encoding ty5) -> Encoding ty3)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the third encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5) ->
-               Encoding dim ty4)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3,
+                Encoding ty4, Encoding ty5) -> Encoding ty4)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the fourth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5) ->
-               Encoding dim ty5)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3,
+                Encoding ty4, Encoding ty5) -> Encoding ty5)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the fifth encoding.
-           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-               Encoding dim ty4, Encoding dim ty5)
+           -> (Encoding ty1, Encoding ty2, Encoding ty3,
+               Encoding ty4, Encoding ty5)
 recursive5 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5 =
   let
     encs =
       (Encoding { encEncode = encode (genfunc1 encs),
                   encDecode = decode (genfunc1 encs),
                   encInDomain = inDomain (genfunc1 encs),
-                  encDepth = depth (genfunc1 encs),
-                  encMaxDepth = maxDepth (genfunc1 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc2 encs),
                   encDecode = decode (genfunc2 encs),
                   encInDomain = inDomain (genfunc2 encs),
-                  encDepth = depth (genfunc2 encs),
-                  encMaxDepth = maxDepth (genfunc2 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc3 encs),
                   encDecode = decode (genfunc3 encs),
                   encInDomain = inDomain (genfunc3 encs),
-                  encDepth = depth (genfunc3 encs),
-                  encMaxDepth = maxDepth (genfunc3 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc4 encs),
                   encDecode = decode (genfunc4 encs),
                   encInDomain = inDomain (genfunc4 encs),
-                  encDepth = depth (genfunc4 encs),
-                  encMaxDepth = maxDepth (genfunc4 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc5 encs),
                   encDecode = decode (genfunc5 encs),
                   encInDomain = inDomain (genfunc5 encs),
-                  encDepth = depth (genfunc5 encs),
-                  encMaxDepth = maxDepth (genfunc5 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) })
-
+                  encSize = Nothing })
   in
     encs
 
 -- | A recursive construction for six mutually-recursive constructions.
-recursive6 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
-               Encoding dim ty1)
+recursive6 :: ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6) -> Encoding ty1)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the first encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
-               Encoding dim ty2)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6) -> Encoding ty2)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the second encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
-               Encoding dim ty3)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6) -> Encoding ty3)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the third encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
-               Encoding dim ty4)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6) -> Encoding ty4)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the fourth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
-               Encoding dim ty5)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6) -> Encoding ty5)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the fifth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6) ->
-               Encoding dim ty6)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6) -> Encoding ty6)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the sixth encoding.
-           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-               Encoding dim ty4, Encoding dim ty5, Encoding dim ty6)
+           -> (Encoding ty1, Encoding ty2, Encoding ty3,
+               Encoding ty4, Encoding ty5, Encoding ty6)
 recursive6 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5 genfunc6 =
   let
     encs =
       (Encoding { encEncode = encode (genfunc1 encs),
                   encDecode = decode (genfunc1 encs),
                   encInDomain = inDomain (genfunc1 encs),
-                  encDepth = depth (genfunc1 encs),
-                  encMaxDepth = maxDepth (genfunc1 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc2 encs),
                   encDecode = decode (genfunc2 encs),
                   encInDomain = inDomain (genfunc2 encs),
-                  encDepth = depth (genfunc2 encs),
-                  encMaxDepth = maxDepth (genfunc2 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc3 encs),
                   encDecode = decode (genfunc3 encs),
                   encInDomain = inDomain (genfunc3 encs),
-                  encDepth = depth (genfunc3 encs),
-                  encMaxDepth = maxDepth (genfunc3 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc4 encs),
                   encDecode = decode (genfunc4 encs),
                   encInDomain = inDomain (genfunc4 encs),
-                  encDepth = depth (genfunc4 encs),
-                  encMaxDepth = maxDepth (genfunc4 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc5 encs),
                   encDecode = decode (genfunc5 encs),
                   encInDomain = inDomain (genfunc5 encs),
-                  encDepth = depth (genfunc5 encs),
-                  encMaxDepth = maxDepth (genfunc5 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc6 encs),
                   encDecode = decode (genfunc6 encs),
                   encInDomain = inDomain (genfunc6 encs),
-                  encDepth = depth (genfunc6 encs),
-                  encMaxDepth = maxDepth (genfunc6 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) })
-
+                  encSize = Nothing })
   in
     encs
 
 -- | A recursive construction for seven mutually-recursive constructions.
-recursive7 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5,
-                Encoding dim ty6, Encoding dim ty7) ->
-               Encoding dim ty1)
+recursive7 :: ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7) -> Encoding ty1)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the first encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5,
-                Encoding dim ty6, Encoding dim ty7) ->
-               Encoding dim ty2)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7) -> Encoding ty2)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the second encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5,
-                Encoding dim ty6, Encoding dim ty7) ->
-               Encoding dim ty3)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7) -> Encoding ty3)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the third encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5,
-                Encoding dim ty6, Encoding dim ty7) ->
-               Encoding dim ty4)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7) -> Encoding ty4)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the fourth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5,
-                Encoding dim ty6, Encoding dim ty7) ->
-               Encoding dim ty5)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7) -> Encoding ty5)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the fifth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5,
-                Encoding dim ty6, Encoding dim ty7) ->
-               Encoding dim ty6)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7) -> Encoding ty6)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the sixth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5,
-                Encoding dim ty6, Encoding dim ty7) ->
-               Encoding dim ty7)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7) -> Encoding ty7)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the seventh encoding.
-           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-               Encoding dim ty4, Encoding dim ty5,
-               Encoding dim ty6, Encoding dim ty7)
+           -> (Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+               Encoding ty5, Encoding ty6, Encoding ty7)
 recursive7 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5 genfunc6 genfunc7 =
   let
     encs =
       (Encoding { encEncode = encode (genfunc1 encs),
                   encDecode = decode (genfunc1 encs),
                   encInDomain = inDomain (genfunc1 encs),
-                  encDepth = depth (genfunc1 encs),
-                  encMaxDepth = maxDepth (genfunc1 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc2 encs),
                   encDecode = decode (genfunc2 encs),
                   encInDomain = inDomain (genfunc2 encs),
-                  encDepth = depth (genfunc2 encs),
-                  encMaxDepth = maxDepth (genfunc2 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc3 encs),
                   encDecode = decode (genfunc3 encs),
                   encInDomain = inDomain (genfunc3 encs),
-                  encDepth = depth (genfunc3 encs),
-                  encMaxDepth = maxDepth (genfunc3 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc4 encs),
                   encDecode = decode (genfunc4 encs),
                   encInDomain = inDomain (genfunc4 encs),
-                  encDepth = depth (genfunc4 encs),
-                  encMaxDepth = maxDepth (genfunc4 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc5 encs),
                   encDecode = decode (genfunc5 encs),
                   encInDomain = inDomain (genfunc5 encs),
-                  encDepth = depth (genfunc5 encs),
-                  encMaxDepth = maxDepth (genfunc5 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc6 encs),
                   encDecode = decode (genfunc6 encs),
                   encInDomain = inDomain (genfunc6 encs),
-                  encDepth = depth (genfunc6 encs),
-                  encMaxDepth = maxDepth (genfunc6 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc7 encs),
                   encDecode = decode (genfunc7 encs),
                   encInDomain = inDomain (genfunc7 encs),
-                  encDepth = depth (genfunc7 encs),
-                  encMaxDepth = maxDepth (genfunc7 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) })
-
+                  encSize = Nothing })
   in
     encs
 
 -- | A recursive construction for eight mutually-recursive constructions.
-recursive8 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8) ->
-               Encoding dim ty1)
+recursive8 :: ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8) ->
+               Encoding ty1)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the first encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8) ->
-               Encoding dim ty2)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8) ->
+               Encoding ty2)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the second encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8) ->
-               Encoding dim ty3)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8) ->
+               Encoding ty3)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the third encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8) ->
-               Encoding dim ty4)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8) ->
+               Encoding ty4)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the fourth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8) ->
-               Encoding dim ty5)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8) ->
+               Encoding ty5)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the fifth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8) ->
-               Encoding dim ty6)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8) ->
+               Encoding ty6)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the sixth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8) ->
-               Encoding dim ty7)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8) ->
+               Encoding ty7)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the seventh encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8) ->
-               Encoding dim ty8)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8) ->
+               Encoding ty8)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the eighth encoding.
-           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-               Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-               Encoding dim ty7, Encoding dim ty8)
+           -> (Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+               Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8)
 recursive8 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5 genfunc6 genfunc7 genfunc8 =
   let
     encs =
       (Encoding { encEncode = encode (genfunc1 encs),
                   encDecode = decode (genfunc1 encs),
                   encInDomain = inDomain (genfunc1 encs),
-                  encDepth = depth (genfunc1 encs),
-                  encMaxDepth = maxDepth (genfunc1 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc2 encs),
                   encDecode = decode (genfunc2 encs),
                   encInDomain = inDomain (genfunc2 encs),
-                  encDepth = depth (genfunc2 encs),
-                  encMaxDepth = maxDepth (genfunc2 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc3 encs),
                   encDecode = decode (genfunc3 encs),
                   encInDomain = inDomain (genfunc3 encs),
-                  encDepth = depth (genfunc3 encs),
-                  encMaxDepth = maxDepth (genfunc3 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc4 encs),
                   encDecode = decode (genfunc4 encs),
                   encInDomain = inDomain (genfunc4 encs),
-                  encDepth = depth (genfunc4 encs),
-                  encMaxDepth = maxDepth (genfunc4 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc5 encs),
                   encDecode = decode (genfunc5 encs),
                   encInDomain = inDomain (genfunc5 encs),
-                  encDepth = depth (genfunc5 encs),
-                  encMaxDepth = maxDepth (genfunc5 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc6 encs),
                   encDecode = decode (genfunc6 encs),
                   encInDomain = inDomain (genfunc6 encs),
-                  encDepth = depth (genfunc6 encs),
-                  encMaxDepth = maxDepth (genfunc6 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc7 encs),
                   encDecode = decode (genfunc7 encs),
                   encInDomain = inDomain (genfunc7 encs),
-                  encDepth = depth (genfunc7 encs),
-                  encMaxDepth = maxDepth (genfunc7 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc8 encs),
                   encDecode = decode (genfunc8 encs),
                   encInDomain = inDomain (genfunc8 encs),
-                  encDepth = depth (genfunc8 encs),
-                  encMaxDepth = maxDepth (genfunc8 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) })
-
+                  encSize = Nothing })
   in
     encs
 
 -- | A recursive construction for nine mutually-recursive constructions.
-recursive9 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
-               Encoding dim ty1)
+recursive9 :: ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7,
+                Encoding ty8, Encoding ty9) -> Encoding ty1)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the first encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
-               Encoding dim ty2)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7,
+                Encoding ty8, Encoding ty9) -> Encoding ty2)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the second encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
-               Encoding dim ty3)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7,
+                Encoding ty8, Encoding ty9) -> Encoding ty3)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the third encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
-               Encoding dim ty4)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7,
+                Encoding ty8, Encoding ty9) -> Encoding ty4)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the fourth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
-               Encoding dim ty5)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7,
+                Encoding ty8, Encoding ty9) -> Encoding ty5)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the fifth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
-               Encoding dim ty6)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7,
+                Encoding ty8, Encoding ty9) -> Encoding ty6)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the sixth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
-               Encoding dim ty7)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7,
+                Encoding ty8, Encoding ty9) -> Encoding ty7)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the seventh encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
-               Encoding dim ty8)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7,
+                Encoding ty8, Encoding ty9) -> Encoding ty8)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the eighth encoding.
-           -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8, Encoding dim ty9) ->
-               Encoding dim ty9)
+           -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7,
+                Encoding ty8, Encoding ty9) -> Encoding ty9)
            -- ^ A function that, given self-references to all encodings,
            -- constructs the ninth encoding.
-           -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-               Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-               Encoding dim ty7, Encoding dim ty8, Encoding dim ty9)
+           -> (Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4, Encoding ty5,
+               Encoding ty6, Encoding ty7, Encoding ty8, Encoding ty9)
 recursive9 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5
            genfunc6 genfunc7 genfunc8 genfunc9 =
   let
@@ -2631,144 +1763,96 @@ recursive9 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5
       (Encoding { encEncode = encode (genfunc1 encs),
                   encDecode = decode (genfunc1 encs),
                   encInDomain = inDomain (genfunc1 encs),
-                  encDepth = depth (genfunc1 encs),
-                  encMaxDepth = maxDepth (genfunc1 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc2 encs),
                   encDecode = decode (genfunc2 encs),
                   encInDomain = inDomain (genfunc2 encs),
-                  encDepth = depth (genfunc2 encs),
-                  encMaxDepth = maxDepth (genfunc2 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc3 encs),
                   encDecode = decode (genfunc3 encs),
                   encInDomain = inDomain (genfunc3 encs),
-                  encDepth = depth (genfunc3 encs),
-                  encMaxDepth = maxDepth (genfunc3 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc4 encs),
                   encDecode = decode (genfunc4 encs),
                   encInDomain = inDomain (genfunc4 encs),
-                  encDepth = depth (genfunc4 encs),
-                  encMaxDepth = maxDepth (genfunc4 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc5 encs),
                   encDecode = decode (genfunc5 encs),
                   encInDomain = inDomain (genfunc5 encs),
-                  encDepth = depth (genfunc5 encs),
-                  encMaxDepth = maxDepth (genfunc5 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc6 encs),
                   encDecode = decode (genfunc6 encs),
                   encInDomain = inDomain (genfunc6 encs),
-                  encDepth = depth (genfunc6 encs),
-                  encMaxDepth = maxDepth (genfunc6 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc7 encs),
                   encDecode = decode (genfunc7 encs),
                   encInDomain = inDomain (genfunc7 encs),
-                  encDepth = depth (genfunc7 encs),
-                  encMaxDepth = maxDepth (genfunc7 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc8 encs),
                   encDecode = decode (genfunc8 encs),
                   encInDomain = inDomain (genfunc8 encs),
-                  encDepth = depth (genfunc8 encs),
-                  encMaxDepth = maxDepth (genfunc8 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc9 encs),
                   encDecode = decode (genfunc9 encs),
                   encInDomain = inDomain (genfunc9 encs),
-                  encDepth = depth (genfunc9 encs),
-                  encMaxDepth = maxDepth (genfunc9 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) })
+                  encSize = Nothing })
   in
     encs
 
 -- | A recursive construction for eight mutually-recursive constructions.
-recursive10 :: ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                 Encoding dim ty7, Encoding dim ty8,
-                 Encoding dim ty9, Encoding dim ty10) ->
-                Encoding dim ty1)
+recursive10 :: ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                 Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
+                 Encoding ty9, Encoding ty10) -> Encoding ty1)
             -- ^ A function that, given self-references to all encodings,
             -- constructs the first encoding.
-            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                 Encoding dim ty7, Encoding dim ty8,
-                 Encoding dim ty9, Encoding dim ty10) ->
-                Encoding dim ty2)
+            -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                 Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
+                 Encoding ty9, Encoding ty10) -> Encoding ty2)
             -- ^ A function that, given self-references to all encodings,
             -- constructs the second encoding.
-            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                 Encoding dim ty7, Encoding dim ty8,
-                 Encoding dim ty9, Encoding dim ty10) ->
-                Encoding dim ty3)
+            -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                 Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
+                 Encoding ty9, Encoding ty10) -> Encoding ty3)
             -- ^ A function that, given self-references to all encodings,
             -- constructs the third encoding.
-            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                 Encoding dim ty7, Encoding dim ty8,
-                 Encoding dim ty9, Encoding dim ty10) ->
-                Encoding dim ty4)
+            -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                 Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
+                 Encoding ty9, Encoding ty10) -> Encoding ty4)
             -- ^ A function that, given self-references to all encodings,
             -- constructs the fourth encoding.
-            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                 Encoding dim ty7, Encoding dim ty8,
-                 Encoding dim ty9, Encoding dim ty10) ->
-                Encoding dim ty5)
+            -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                 Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
+                 Encoding ty9, Encoding ty10) -> Encoding ty5)
             -- ^ A function that, given self-references to all encodings,
             -- constructs the fifth encoding.
-            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                 Encoding dim ty7, Encoding dim ty8,
-                 Encoding dim ty9, Encoding dim ty10) ->
-                Encoding dim ty6)
+            -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                 Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
+                 Encoding ty9, Encoding ty10) -> Encoding ty6)
             -- ^ A function that, given self-references to all encodings,
             -- constructs the sixth encoding.
-            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                 Encoding dim ty7, Encoding dim ty8,
-                 Encoding dim ty9, Encoding dim ty10) ->
-                Encoding dim ty7)
+            -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                 Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
+                 Encoding ty9, Encoding ty10) -> Encoding ty7)
             -- ^ A function that, given self-references to all encodings,
             -- constructs the seventh encoding.
-            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                 Encoding dim ty7, Encoding dim ty8,
-                 Encoding dim ty9, Encoding dim ty10) ->
-                Encoding dim ty8)
+            -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                 Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
+                 Encoding ty9, Encoding ty10) -> Encoding ty8)
             -- ^ A function that, given self-references to all encodings,
             -- constructs the eighth encoding.
-            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                 Encoding dim ty7, Encoding dim ty8,
-                 Encoding dim ty9, Encoding dim ty10) ->
-                Encoding dim ty9)
+            -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                 Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
+                 Encoding ty9, Encoding ty10) -> Encoding ty9)
             -- ^ A function that, given self-references to all encodings,
             -- constructs the ninth encoding.
-            -> ((Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                 Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                 Encoding dim ty7, Encoding dim ty8,
-                 Encoding dim ty9, Encoding dim ty10) ->
-                Encoding dim ty10)
+            -> ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                 Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
+                 Encoding ty9, Encoding ty10) -> Encoding ty10)
             -- ^ A function that, given self-references to all encodings,
             -- constructs the tenth encoding.
-            -> (Encoding dim ty1, Encoding dim ty2, Encoding dim ty3,
-                Encoding dim ty4, Encoding dim ty5, Encoding dim ty6,
-                Encoding dim ty7, Encoding dim ty8,
-                Encoding dim ty9, Encoding dim ty10)
+            -> (Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
+                Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
+                Encoding ty9, Encoding ty10)
 recursive10 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5
             genfunc6 genfunc7 genfunc8 genfunc9 genfunc10 =
   let
@@ -2776,96 +1860,42 @@ recursive10 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5
       (Encoding { encEncode = encode (genfunc1 encs),
                   encDecode = decode (genfunc1 encs),
                   encInDomain = inDomain (genfunc1 encs),
-                  encDepth = depth (genfunc1 encs),
-                  encMaxDepth = maxDepth (genfunc1 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc2 encs),
                   encDecode = decode (genfunc2 encs),
                   encInDomain = inDomain (genfunc2 encs),
-                  encDepth = depth (genfunc2 encs),
-                  encMaxDepth = maxDepth (genfunc2 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc3 encs),
                   encDecode = decode (genfunc3 encs),
                   encInDomain = inDomain (genfunc3 encs),
-                  encDepth = depth (genfunc3 encs),
-                  encMaxDepth = maxDepth (genfunc3 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc4 encs),
                   encDecode = decode (genfunc4 encs),
                   encInDomain = inDomain (genfunc4 encs),
-                  encDepth = depth (genfunc4 encs),
-                  encMaxDepth = maxDepth (genfunc4 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc5 encs),
                   encDecode = decode (genfunc5 encs),
                   encInDomain = inDomain (genfunc5 encs),
-                  encDepth = depth (genfunc5 encs),
-                  encMaxDepth = maxDepth (genfunc5 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc6 encs),
                   encDecode = decode (genfunc6 encs),
                   encInDomain = inDomain (genfunc6 encs),
-                  encDepth = depth (genfunc6 encs),
-                  encMaxDepth = maxDepth (genfunc6 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc7 encs),
                   encDecode = decode (genfunc7 encs),
                   encInDomain = inDomain (genfunc7 encs),
-                  encDepth = depth (genfunc7 encs),
-                  encMaxDepth = maxDepth (genfunc7 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc8 encs),
                   encDecode = decode (genfunc8 encs),
                   encInDomain = inDomain (genfunc8 encs),
-                  encDepth = depth (genfunc8 encs),
-                  encMaxDepth = maxDepth (genfunc8 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc9 encs),
                   encDecode = decode (genfunc9 encs),
                   encInDomain = inDomain (genfunc9 encs),
-                  encDepth = depth (genfunc9 encs),
-                  encMaxDepth = maxDepth (genfunc9 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) },
+                  encSize = Nothing },
        Encoding { encEncode = encode (genfunc10 encs),
                   encDecode = decode (genfunc10 encs),
                   encInDomain = inDomain (genfunc10 encs),
-                  encDepth = depth (genfunc10 encs),
-                  encMaxDepth = maxDepth (genfunc10 encs),
-                  encSize = Nothing,
-                  encHighestIndex = const (const Nothing) })
+                  encSize = Nothing })
   in
     encs
-
--- THIS CODE IS FROM HASKELLWIKI, AND THEREFORE NOT SUBJECT TO THE
--- COPYRIGHT CLAIM AT THE TOP OF THIS FILE
---
--- This should eventually be replaced with an implementation that
--- calls GMP.
-(^!) :: Num a => a -> Int -> a
-(^!) x n = x ^ n
-
-isqrt :: Integer -> Integer
-isqrt 0 = 0
-isqrt 1 = 1
-isqrt n =
-  let
-    twopows = iterate (^! 2) 2
-    (lowerRoot, lowerN) =
-      last $ takeWhile ((n >=) . snd) $ zip (1 : twopows) twopows
-    newtonStep x = div (x + div n x) 2
-    iters = iterate newtonStep (isqrt (div n lowerN) * lowerRoot)
-    isRoot r = r ^! 2 <= n && n < (r + 1) ^! 2
-  in
-    head $ dropWhile (not . isRoot) iters
-
--- END CODE NOT SUBJECT TO COPYRIGHT CLAIM

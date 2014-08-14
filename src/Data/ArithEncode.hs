@@ -57,15 +57,6 @@
 -- result should not be considered valid if they do not throw the
 -- exception).
 --
--- Encodings also have a notion of \"dimensions\", and \"depth\" in a
--- given dimension.  It is up to the implementation of an encoding to
--- determine what constitutes a dimension; however, dimensions should
--- determine a notion of depth independent of all other dimensions.
--- For example, a matrix has two dimensions, whereas a binary tree has
--- one.  Depending on our intended application, we might define an
--- @n@-ary tree to have two dimensions: one indicating the depth of
--- the tree, and one indicating the largest node degree.
---
 -- This library provides a large collection of combinators for
 -- constructing more complex 'Encoding's out of simpler ones.  The
 -- provided combinators should be appropriate for constructing
@@ -74,13 +65,12 @@
 -- As an example, the following definition creates an 'Encoding' for
 -- the @Tree Integer@ type:
 --
--- > tree :: Encoding (SeqDim dim) (Tree Integer)
+-- > tree :: Encoding (Tree Integer)
 -- > tree =
 -- >   let
 -- >     ...
--- >     wrappedInteger = wrapDim (\(SeqElem dim) -> dim) interval
 -- >     nodeEncoding nodeenc =
--- >       wrap unmakeNode makeNode (pair' wrappedInteger (seq' nodeenc))
+-- >       wrap unmakeNode makeNode (pair interval (seq nodeenc))
 -- >   in
 -- >     recursive nodeEncoding
 --

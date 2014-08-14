@@ -1,4 +1,4 @@
--- Copyright (c) 2014 Eric McCorkle.  All rights reserved.
+--- Copyright (c) 2014 Eric McCorkle.  All rights reserved.
 --
 -- Redistribution and use in source and binary forms, with or without
 -- modification, are permitted provided that the following conditions
@@ -28,7 +28,6 @@
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
 {-# OPTIONS_GHC -Wall -Werror #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Derived encodings for standard datatypes.
 --
@@ -40,11 +39,8 @@ module Data.ArithEncode.Util(
 
        -- * Non-Empty Containers
        nonEmptySeq,
-       nonEmptySeq',
        nonEmptySet,
-       nonEmptySet',
        nonEmptyHashSet,
-       nonEmptyHashSet',
 
        -- * Functions and Relations
        function,
@@ -73,72 +69,41 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- | An encoding that produces @()@.
-unit :: Encoding () ()
+unit :: Encoding ()
 unit = singleton ()
 
 -- | Build an encoding that produces non-empty sequences from an
 -- encoding for the elements of the sequence.
-nonEmptySeq :: Encoding dim ty
+nonEmptySeq :: Encoding ty
             -- ^ The encoding for the element type
-            -> Encoding (SeqDim dim) [ty]
+            -> Encoding [ty]
 nonEmptySeq = nonzero . seq
 
--- | Build an encoding that produces non-empty sequences from an
--- encoding for the elements of the sequence.
---
--- In this variant, the component type must be a @SetDim@, making it
--- suitable as a recursive construction.
-nonEmptySeq' :: Encoding (SeqDim dim) ty
-             -- ^ The encoding for the element type
-             -> Encoding (SeqDim dim) [ty]
-nonEmptySeq' = nonzero . seq'
 
 -- | Build an encoding that produces non-empty sets from an encoding
 -- for the elements of the set.
 nonEmptySet :: Ord ty =>
-               Encoding dim ty
+               Encoding ty
             -- ^ The encoding for the element type
-            -> Encoding (SetDim dim) (Set ty)
+            -> Encoding (Set ty)
 nonEmptySet = nonzero . set
-
--- | Build an encoding that produces non-empty sets from an encoding
--- for the elements of the set.
---
--- In this variant, the component type must be a @SetDim@, making it
--- suitable as a recursive construction.
-nonEmptySet' :: Ord ty =>
-               Encoding (SetDim dim) ty
-             -- ^ The encoding for the element type
-             -> Encoding (SetDim dim) (Set ty)
-nonEmptySet' = nonzero . set'
 
 -- | Build an encoding that produces non-empty hash sets from an encoding
 -- for the elements of the set.
 nonEmptyHashSet :: (Hashable ty, Ord ty) =>
-                   Encoding dim ty
+                   Encoding ty
                 -- ^ The encoding for the element type
-                -> Encoding (SetDim dim) (HashSet.Set ty)
+                -> Encoding (HashSet.Set ty)
 nonEmptyHashSet = nonzero . hashSet
-
--- | Build an encoding that produces non-empty hash sets from an encoding
--- for the elements of the set.
---
--- In this variant, the component type must be a @SetDim@, making it
--- suitable as a recursive construction.
-nonEmptyHashSet' :: (Hashable ty, Ord ty) =>
-                    Encoding (SetDim dim) ty
-                 -- ^ The encoding for the element type
-                 -> Encoding (SetDim dim) (HashSet.Set ty)
-nonEmptyHashSet' = nonzero . hashSet'
 
 -- | Build an encoding that produces a (finite partial) function from
 -- one type to another.  This function is represented using a @Map@.
 function :: (Ord keyty) =>
-            Encoding dim keyty
+            Encoding keyty
          -- ^ The encoding for the domain type (ie. key type)
-         -> Encoding dim valty
+         -> Encoding valty
          -- ^ The encoding for the range type (ie. value type)
-         -> Encoding dim (Map.Map keyty valty)
+         -> Encoding (Map.Map keyty valty)
 function keyenc valenc =
   let
     seqToMap val =
@@ -164,16 +129,16 @@ function keyenc valenc =
           Just (reverse out)
       | otherwise = Nothing
   in
-    wrapDim SeqElem (wrap mapToSeq seqToMap (seq (optional valenc)))
+    wrap mapToSeq seqToMap (seq (optional valenc))
 
 -- | Build an encoding that produces a (finite partial) function from
 -- one type to another.  This function is represented using a @HashMap@.
 functionHashable :: (Ord keyty, Hashable keyty) =>
-                    Encoding dim keyty
+                    Encoding keyty
                  -- ^ The encoding for the domain type (ie. key type)
-                 -> Encoding dim valty
+                 -> Encoding valty
                  -- ^ The encoding for the range type (ie. value type)
-                 -> Encoding dim (HashMap.Map keyty valty)
+                 -> Encoding (HashMap.Map keyty valty)
 functionHashable keyenc valenc =
   let
     seqToMap val =
@@ -200,35 +165,35 @@ functionHashable keyenc valenc =
           Just (reverse out)
       | otherwise = Nothing
   in
-    wrapDim SeqElem (wrap mapToSeq seqToMap (seq (optional valenc)))
+    wrap mapToSeq seqToMap (seq (optional valenc))
 
 -- | Build an encoding that produces relations between two types.
 -- These relations are represented as @Map@s from the first type to
 -- @Set@s of the second.
 relation :: (Ord keyty, Ord valty) =>
-            Encoding dim keyty
+            Encoding keyty
          -- ^ The encoding for the left-hand type (ie. key type)
-         -> Encoding dim valty
+         -> Encoding valty
          -- ^ The encoding for the right-hand type (ie. value type)
-         -> Encoding dim (Map.Map keyty (Set.Set valty))
-relation keyenc = function keyenc . wrapDim SetElem . set
+         -> Encoding (Map.Map keyty (Set.Set valty))
+relation keyenc = function keyenc . set
 
 -- | Build an encoding that produces relations between two types.
 -- These relations are represented as @HashMap@s from the first type to
 -- @HashSet@s of the second.
 relationHashable :: (Hashable keyty, Ord keyty, Hashable valty, Ord valty) =>
-                    Encoding dim keyty
+                    Encoding keyty
                  -- ^ The encoding for the left-hand type (ie. key type)
-                 -> Encoding dim valty
+                 -> Encoding valty
                  -- ^ The encoding for the right-hand type (ie. value type)
-                 -> Encoding dim (HashMap.Map keyty (HashSet.Set valty))
-relationHashable keyenc = functionHashable keyenc . wrapDim SetElem . hashSet
+                 -> Encoding (HashMap.Map keyty (HashSet.Set valty))
+relationHashable keyenc = functionHashable keyenc . hashSet
 
 -- | Build an encoding that produces trees from an encoding for the
 -- node labels.
-tree :: Encoding dim ty
+tree :: Encoding ty
      -- ^ The encoding for the node data type
-     -> Encoding (SeqDim dim) (Tree ty)
+     -> Encoding (Tree ty)
 tree enc =
   let
     makeNode (label, children) =
@@ -237,9 +202,7 @@ tree enc =
     unmakeNode Node { rootLabel = label, subForest = children } =
       Just (label, children)
 
-    wrappedInteger = wrapDim (\(SeqElem dim) -> dim) enc
-
     nodeEncoding nodeenc =
-      wrap unmakeNode makeNode (pair' wrappedInteger (seq' nodeenc))
+      wrap unmakeNode makeNode (pair enc (seq nodeenc))
   in
     recursive nodeEncoding

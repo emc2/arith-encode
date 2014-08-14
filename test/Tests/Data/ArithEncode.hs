@@ -49,25 +49,8 @@ import qualified Data.HashMap as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Set as Set
 
-linearDepthEncoding :: (Hashable ty, Ord ty) => [ty] -> Encoding () ty
-linearDepthEncoding elems =
-  let
-    len = length elems
-    revmap = Array.listArray (0, len) elems
-    fwdmap = HashMap.fromList (zip elems [0..len])
-    encodefunc = toInteger . (HashMap.!) fwdmap
-    decodefunc = (Array.!) revmap . fromInteger
-    sizeval = Just (toInteger len)
-    maxdepthfunc () = Just (toInteger (len - 1))
-    depthfunc () = toInteger . (HashMap.!) fwdmap
-    highindexfunc () = Just
-    indomainfunc = (flip HashMap.member) fwdmap
-  in
-    mkEncoding encodefunc decodefunc sizeval indomainfunc
-               maxdepthfunc depthfunc highindexfunc
-
 testIsomorphism :: (Hashable ty, Ord ty, Show ty) =>
-                   Encoding dim ty -> Integer -> IO ()
+                   Encoding ty -> Integer -> IO ()
 testIsomorphism iso limit =
   let
     foldfun previous num =
@@ -82,7 +65,7 @@ testIsomorphism iso limit =
   in
     foldM_ foldfun HashSet.empty [0..limit]
 
-testEncodingVals :: (Show ty, Eq ty) => Encoding dim ty -> [ty] -> IO ()
+testEncodingVals :: (Show ty, Eq ty) => Encoding ty -> [ty] -> IO ()
 testEncodingVals iso vals =
   let
     foldfun previous val =
@@ -102,18 +85,18 @@ testEncodingVals iso vals =
     foldM_ foldfun HashSet.empty vals
 
 testFiniteEncoding :: (Hashable ty, Ord ty, Show ty) =>
-                      [String] -> Encoding dim ty -> IO ()
+                      [String] -> Encoding ty -> IO ()
 testFiniteEncoding tags iso =
   let
     limit = fromJust (size iso)
   in
     testIsomorphism iso limit
 
-testInDomain :: Show ty => Encoding dim ty -> [ty] -> Test
+testInDomain :: Show ty => Encoding ty -> [ty] -> Test
 testInDomain enc vals =
   test (mapM_ (\val -> inDomain enc val @? "inDomain " ++ show val) vals)
 
-testNotInDomain :: Show ty => Encoding dim ty -> [ty] -> Test
+testNotInDomain :: Show ty => Encoding ty -> [ty] -> Test
 testNotInDomain enc vals =
   test (mapM_ (\val -> not (inDomain enc val) @? "not inDomain " ++ show val)
         vals)
@@ -126,12 +109,7 @@ testInfDimlessEncodingWithLimit tags iso limit = [
                                (return $! decode iso (-1))),
     testNameTags "size" ("size" : tags) (size iso @?= Nothing),
     testNameTags "inDomain" ("inDomain" : tags)
-                 (testInDomain iso (map (decode iso) [0..limit])),
-    testNameTags "depth" ("depth" : tags)
-                 (mapM_ (\n -> depth iso () (decode iso n) @?= 0) [0..limit]),
-    testNameTags "maxDepth" ("maxDepth" : tags) (maxDepth iso () @?= Just 0),
-    testNameTags "highestIndex" ("highestIndex" : tags)
-                 (highestIndex iso () 0 @?= Nothing)
+                 (testInDomain iso (map (decode iso) [0..limit]))
   ]
 
 testInfDimlessEncoding tags iso = testInfDimlessEncodingWithLimit tags iso 10000
@@ -152,85 +130,13 @@ testFiniteEncodingWithVals tags iso vals nonvals =
                                  (return $! decode iso (fromJust (size iso)))),
       testNameTags "inDomain" ("inDomain" : tags) (testInDomain iso vals),
       testNameTags "not_inDomain" ("inDomain" : tags)
-                   (testNotInDomain iso nonvals),
-      testNameTags "depth" ("depth" : tags)
-                   (mapM_ (\val -> depth iso () val @?= 0) vals),
-      testNameTags "maxDepth" ("maxDepth" : tags) (maxDepth iso () @?= Just 0),
-      testNameTags "highestIndex" ("highestIndex" : tags)
-                   (highestIndex iso () 0 @?= Just isosize) ]
-
-testLinearDepthEncoding tags iso vals nonvals =
-  let
-    isosize = toInteger (length vals)
-    zipped = zip [0..isosize] vals
-
-    testDepth [] = return ()
-    testDepth ((depthval, val) : rest) =
-      do
-        depth iso () val @?= depthval
-        testDepth rest
-
-    testHighestIndex 0 = highestIndex iso () 0 @?= Just 0
-    testHighestIndex depthval =
-      let
-        idx = case findIndex ((> depthval) . depth iso ()) vals of
-          Just 0 -> 0
-          Just idx -> toInteger (idx - 1)
-          Nothing -> isosize - 1
-      in do
-        highestIndex iso () depthval @?= Just idx
-        testHighestIndex (depthval - 1)
-  in
-    [ testNameTags "isomorphism" ("isomorphism" : tags)
-                   (testEncodingVals iso vals),
-      testNameTags "size" ("size" : tags)
-                   (size iso @?= Just isosize),
-      testNameTags "bounds_low" ("bounds" : tags)
-                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
-                                 (return $! decode iso (-1))),
-      testNameTags "bounds_high" ("bounds" : tags)
-                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
-                                 (return $! decode iso (fromJust (size iso)))),
-      testNameTags "inDomain" ("inDomain" : tags) (testInDomain iso vals),
-      testNameTags "not_inDomain" ("inDomain" : tags)
-                   (testNotInDomain iso nonvals),
-      testNameTags "maxDepth" ("maxDepth" : tags)
-                   (maxDepth iso () @?= Just (isosize - 1)),
-      testNameTags "depth" ("depth" : tags) (testDepth zipped),
-      testNameTags "highestIndex" ("highestIndex" : tags)
-                   (testHighestIndex (isosize - 1)) ]
+                   (testNotInDomain iso nonvals) ]
 
 testExclude tags iso vals nonvals excludes =
   let
     isosize = toInteger (length vals - length excludes)
     filtered = filter ((flip notElem) excludes) vals
-    zipped = zip [0..isosize] vals
-    filtereddepths = filter ((flip notElem) excludes . snd) zipped
     badvals = nonvals ++ excludes
-
-    testDepth [] = return ()
-    testDepth ((depthval, val) : rest) =
-      do
-        depth iso () val @?= depthval
-        testDepth rest
-
-    testHighestIndex 0 =
-      let
-        idx = case findIndex ((> 0) . depth iso ()) filtered of
-          Just 0 -> 0
-          Just idx -> toInteger (idx - 1)
-          Nothing -> isosize - 1
-      in do
-        highestIndex iso () 0 @?= Just idx
-    testHighestIndex depthval =
-      let
-        idx = case findIndex ((> depthval) . depth iso ()) filtered of
-          Just 0 -> 0
-          Just idx -> toInteger (idx - 1)
-          Nothing -> isosize - 1
-      in do
-        highestIndex iso () depthval @?= Just idx
-        testHighestIndex (depthval - 1)
   in
     [ testNameTags "isomorphism" ("isomorphism" : tags)
                    (testEncodingVals iso filtered),
@@ -244,41 +150,36 @@ testExclude tags iso vals nonvals excludes =
                                  (return $! decode iso (fromJust (size iso)))),
       testNameTags "inDomain" ("inDomain" : tags) (testInDomain iso filtered),
       testNameTags "not_inDomain" ("inDomain" : tags)
-                   (testNotInDomain iso badvals),
-      testNameTags "maxDepth" ("maxDepth" : tags)
-                   (maxDepth iso () @?= Just (toInteger ((length vals) - 1))),
-      testNameTags "depth" ("depth" : tags) (testDepth filtereddepths),
-      testNameTags "highestIndex" ("highestIndex" : tags)
-                   (testHighestIndex (isosize - 1)) ]
+                   (testNotInDomain iso badvals) ]
 
-integralInteger :: Encoding () Integer
+integralInteger :: Encoding Integer
 integralInteger = integral
 
-integralInt64 :: Encoding () Int64
+integralInt64 :: Encoding Int64
 integralInt64 = integral
 
-integralWord64 :: Encoding () Int64
+integralWord64 :: Encoding Int64
 integralWord64 = integral
 
-integralInt8 :: Encoding () Int8
+integralInt8 :: Encoding Int8
 integralInt8 = integral
 
-integralWord8 :: Encoding () Int8
+integralWord8 :: Encoding Int8
 integralWord8 = integral
 
-intervalInteger :: Integer -> Integer -> Encoding () Integer
+intervalInteger :: Integer -> Integer -> Encoding Integer
 intervalInteger = interval
 
-intervalInt64 :: Int64 -> Int64 -> Encoding () Int64
+intervalInt64 :: Int64 -> Int64 -> Encoding Int64
 intervalInt64 = interval
 
-intervalInt8 :: Int8 -> Int8 -> Encoding () Int8
+intervalInt8 :: Int8 -> Int8 -> Encoding Int8
 intervalInt8 = interval
 
-intervalWord64 :: Word64 -> Word64 -> Encoding () Word64
+intervalWord64 :: Word64 -> Word64 -> Encoding Word64
 intervalWord64 = interval
 
-intervalWord8 :: Word8 -> Word8 -> Encoding () Word8
+intervalWord8 :: Word8 -> Word8 -> Encoding Word8
 intervalWord8 = interval
 
 optionalEncoding = optional (fromHashableList ['A', 'B', 'C', 'D'])
@@ -409,20 +310,14 @@ optionalEncodingTests = [
                                (return $! decode optionalEncoding (-1))),
     testNameTags "bounds_high" ["bounds", "optional"]
                  (assertThrows (\(IllegalArgument _) -> assertSuccess)
-                               (return $! decode optionalEncoding 5)),
-    testNameTags "maxDepth" ["maxDepth", "optional"]
-                 (maxDepth optionalEncoding () @?= Just 1),
-    testNameTags "highestIndex_zero" ["highestIndex", "optional"]
-                 (highestIndex optionalEncoding () 0 @?= Just 0),
-    testNameTags "highestIndex_one" ["highestIndex", "optional"]
-                 (highestIndex optionalEncoding () 1 @?= Just 4) ]
+                               (return $! decode optionalEncoding 5)) ]
 
 makeExcludeTest (vals, excludes) =
   let
     name = excludes
   in
-    name ~: testExclude ["linearDepthEncoding", "exclude"]
-                        (exclude excludes (linearDepthEncoding vals))
+    name ~: testExclude ["fromHashableList", "exclude"]
+                        (exclude excludes (fromHashableList vals))
                         vals ['F', 'G'] excludes
 
 excludeTests =
@@ -453,9 +348,9 @@ excludeTests =
       ]
   in
     ("exclude_empty" ~:
-     testLinearDepthEncoding
-       ["linearDepthEncoding", "exclude"]
-       (exclude [] (linearDepthEncoding ['A', 'B', 'C', 'D', 'E']))
+     testFiniteEncodingWithVals
+       ["fromHashableList", "exclude"]
+       (exclude [] (fromHashableList ['A', 'B', 'C', 'D', 'E']))
        ['A', 'B', 'C', 'D', 'E'] ['F', 'G']) : map makeExcludeTest testdata
 
 testInfEither tags iso limit = [
@@ -466,15 +361,7 @@ testInfEither tags iso limit = [
                                (return $! decode iso (-1))),
     testNameTags "size" ("size" : tags) (size iso @?= Nothing),
     testNameTags "inDomain" ("inDomain" : tags)
-                 (testInDomain iso (map (decode iso) [0..limit])),
-    testNameTags "maxDepth" ("maxDepth" : tags)
-                 (maxDepth iso (Left ()) @?= Just 0),
-    testNameTags "maxDepth" ("maxDepth" : tags)
-                 (maxDepth iso (Right ()) @?= Just 0),
-    testNameTags "highestIndex" ("highestIndex" : tags)
-                 (highestIndex iso (Left ()) 0 @?= Nothing),
-    testNameTags "highestIndex" ("highestIndex" : tags)
-                 (highestIndex iso (Right ()) 0 @?= Nothing) ]
+                 (testInDomain iso (map (decode iso) [0..limit])) ]
 
 testInfFinEither tags iso finvals limit nonvals =
   let
@@ -493,15 +380,7 @@ testInfFinEither tags iso finvals limit nonvals =
       testNameTags "inDomain" ("inDomain" : tags) (testInDomain iso vals),
       testNameTags "not_inDomain" ["inDomain", "hashSet"]
                    (testNotInDomain iso nonvals),
-      testNameTags "size" ("size" : tags) (size iso @?= Nothing),
-      testNameTags "maxDepth" ("maxDepth" : tags)
-                   (maxDepth iso (Left ()) @?= Just 0),
-      testNameTags "maxDepth" ("maxDepth" : tags)
-                   (maxDepth iso (Right ()) @?= Just 0),
-      testNameTags "highestIndex" ("highestIndex" : tags)
-                   (highestIndex iso (Left ()) 0 @?= Nothing),
-      testNameTags "highestIndex" ("highestIndex" : tags)
-                   (highestIndex iso (Right ()) 0 @?= Just lastFinite) ]
+      testNameTags "size" ("size" : tags) (size iso @?= Nothing) ]
 
 testFinInfEither tags iso finvals limit nonvals =
   let
@@ -520,22 +399,12 @@ testFinInfEither tags iso finvals limit nonvals =
       testNameTags "inDomain" ("inDomain" : tags) (testInDomain iso vals),
       testNameTags "not_inDomain" ["inDomain", "hashSet"]
                    (testNotInDomain iso nonvals),
-      testNameTags "size" ("size" : tags) (size iso @?= Nothing),
-      testNameTags "maxDepth" ("maxDepth" : tags)
-                   (maxDepth iso (Left ()) @?= Just 0),
-      testNameTags "maxDepth" ("maxDepth" : tags)
-                   (maxDepth iso (Right ()) @?= Just 0),
-      testNameTags "highestIndex" ("highestIndex" : tags)
-                   (highestIndex iso (Left ()) 0 @?= Just lastFinite),
-      testNameTags "highestIndex" ("highestIndex" : tags)
-                   (highestIndex iso (Right ()) 0 @?= Nothing) ]
+      testNameTags "size" ("size" : tags) (size iso @?= Nothing) ]
 
 testFinEither tags iso leftvals rightvals nonvals =
   let
     vals = map Left leftvals ++ map Right rightvals
     isosize = toInteger (length vals)
-    lastleft = maximum (map (encode iso . Left) leftvals)
-    lastright = maximum (map (encode iso. Right) rightvals)
   in
     [ testNameTags "isomorphism" ("isomorphism" : tags)
                    (testEncodingVals iso vals),
@@ -549,15 +418,7 @@ testFinEither tags iso leftvals rightvals nonvals =
                                  (return $! decode iso (-1))),
       testNameTags "bounds_high" ("bounds" : tags)
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
-                                 (return $! decode iso (fromJust (size iso)))),
-      testNameTags "maxDepth_Left" ("maxDepth" : tags)
-                   (maxDepth iso (Left ()) @?= Just 0),
-      testNameTags "maxDepth_Right" ("maxDepth" : tags)
-                   (maxDepth iso (Right ()) @?= Just 0),
-      testNameTags "highestIndex_Left" ("highestIndex" : tags)
-                   (highestIndex iso (Left ()) 0 @?= Just lastleft),
-      testNameTags "highestIndex_Right" ("highestIndex" : tags)
-                   (highestIndex iso (Right ()) 0 @?= Just lastright) ]
+                                 (return $! decode iso (fromJust (size iso)))) ]
 
 eitherTests =
   let
@@ -622,14 +483,7 @@ finitePairTests =
                                  (return $! decode iso 12)),
       testNameTags "inDomain" ["inDomain", "pair"] (testInDomain iso vals),
       testNameTags "not_inDomain" ["inDomain", "pair"]
-                   (testNotInDomain iso nonvals),
-      testNameTags "depth" ["depth", "pair"]
-                   (mapM_ (\val -> depth iso ((), ()) val @?= 0) vals),
-      testNameTags "maxDepth" ["maxDepth", "pair"]
-                   (maxDepth iso ((), ()) @?= Just 0),
-      testNameTags "highestIndex" ["highestIndex", "pair"]
-                   (highestIndex iso ((), ()) 0 @?= Just 4)
-    ]
+                   (testNotInDomain iso nonvals) ]
 
 infinitePairTests iso1 iso2 limit =
   let
@@ -642,15 +496,7 @@ infinitePairTests iso1 iso2 limit =
                                  (return $! decode iso (-1))),
       testNameTags "size" ["size", "pair"] (size iso @?= Nothing),
       testNameTags "inDomain" ["inDomain", "pair"]
-                   (testInDomain iso (map (decode iso) [0..limit])),
-      testNameTags "depth" ["depth", "pair"]
-                   (mapM_ (\n -> depth iso ((), ()) (decode iso n) @?= 0)
-                          [0..limit]),
-      testNameTags "maxDepth" ["maxDepth", "pair"]
-                   (maxDepth iso ((), ()) @?= Just 0),
-      testNameTags "highestIndex" ["highestIndex", "pair"]
-                   (highestIndex iso ((), ()) 0 @?= Nothing)
-    ]
+                   (testInDomain iso (map (decode iso) [0..limit])) ]
 
 pairTests =
   let
@@ -673,11 +519,11 @@ instance (Hashable a, Hashable b, Hashable c, Hashable d) =>
 
 unionTests =
   let
-    oneEnc = (linearDepthEncoding ['A'], ['A'], ['B'], "one")
-    twoEnc = (linearDepthEncoding ['A', 'B'], ['A', 'B'], ['C', 'D'], "two")
-    threeEnc = (linearDepthEncoding ['A', 'B', 'C'],
+    oneEnc = (fromHashableList ['A'], ['A'], ['B'], "one")
+    twoEnc = (fromHashableList ['A', 'B'], ['A', 'B'], ['C', 'D'], "two")
+    threeEnc = (fromHashableList ['A', 'B', 'C'],
                 ['A', 'B', 'C'], ['D', 'E', 'F'], "three")
-    fiveEnc = (linearDepthEncoding ['A', 'B', 'C', 'D', 'E'],
+    fiveEnc = (fromHashableList ['A', 'B', 'C', 'D', 'E'],
                ['A', 'B', 'C', 'D', 'E'], ['F', 'G', 'H', 'I', 'J'], "five")
     infEnc = (integralInteger, [-10..10], [], "infinite")
 
@@ -725,32 +571,6 @@ unionTests =
         sortfunc _ Nothing = LT
         sortfunc (Just a) (Just b) = compare a b
 
-        firstdepth = maxDepth firstenc ()
-        seconddepth = maxDepth secondenc ()
-        thirddepth = maxDepth thirdenc ()
-        fourthdepth = maxDepth fourthenc ()
-        highdepth = maximumBy sortfunc [maxDepth firstenc (),
-                                        maxDepth secondenc (),
-                                        maxDepth thirdenc (),
-                                        maxDepth fourthenc ()]
-
-        testHighestIndex depthval
-          | depthval < 0 = return ()
-          | maximumBy sortfunc [highestIndex firstenc () depthval,
-                                highestIndex secondenc () depthval,
-                                highestIndex thirdenc () depthval,
-                                highestIndex fourthenc () depthval] == Nothing =
-            highestIndex iso () depthval @?= Nothing
-          | otherwise=
-            let
-              indexes = filter ((<= depthval) . depth iso () . decode iso)
-                               [0..(toInteger (length vals - 1))]
-              idx = case indexes of
-                [] -> isolimit
-                _ -> Just (maximum indexes)
-            in do
-              highestIndex iso () depthval @?= idx
-              testHighestIndex (depthval - 1)
       in
         name ~:
           [ testNameTags "isomorphism" ["isomorphism", "union"]
@@ -763,11 +583,7 @@ unionTests =
             testNameTags "inDomain" ["inDomain", "union"]
                          (testInDomain iso vals),
             testNameTags "not_inDomain" ["inDomain", "union"]
-                         (testNotInDomain iso nonvals),
-            testNameTags "maxDepth" ["maxDepth", "union"]
-                         (maxDepth iso () @?= highdepth),
-            testNameTags "highestIndex" ["highestIndex", "union"]
-                         (testHighestIndex (fromJust highdepth)) ] ++
+                         (testNotInDomain iso nonvals) ] ++
             if finite
               then
                 [ testNameTags "bounds_high" ["bounds", "union"]
@@ -802,35 +618,12 @@ instance Hashable (HashSet.Set Integer) where
   hashWithSalt s = foldl hashWithSalt s . sort . HashSet.toList
 
 testInfSet iso limit =
-  let
-    checkSetSizeDepth n =
-      let
-        s = decode iso n
-      in
-        fromInteger (depth iso SetSize s) @?= Set.size s
-  in
-    [ testNameTags "isomorphism" ["isomorphism", "set"]
-                   (testIsomorphism iso limit),
-      testNameTags "bounds_low" ["bounds", "set"]
-                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
-                                 (return $! decode iso (-1))),
-      testNameTags "size" ["size", "set"] (size iso @?= Nothing),
-      testNameTags "depth_SetSize" ["depth", "set", "SetSize"]
-                   (mapM_ checkSetSizeDepth [0..limit]),
-      testNameTags "depth_SetElem" ["depth", "set", "SetElem"]
-                   (mapM_ (\n -> depth iso (SetElem ()) (decode iso n) @?= 0)
-                          [0..limit]),
-      testNameTags "maxDepth_SetSize" ["maxDepth", "set", "SetSize"]
-                   (maxDepth iso SetSize @?= Nothing),
-      testNameTags "maxDepth_SetElem" ["maxDepth", "set", "SetElem"]
-                   (maxDepth iso (SetElem ()) @?= Just 0),
-      testNameTags "highestIndex_SetElem" ["highestIndex", "set", "SetElem"]
-                   (highestIndex iso (SetElem ()) 0 @?= Nothing),
-      testNameTags "highestIndex_SetSize_0" ["highestIndex", "set", "SetSize"]
-                   (highestIndex iso SetSize 0 @?= Just 0),
-      testNameTags "highestIndex_SetSize_n" ["highestIndex", "set", "SetSize"]
-                   (highestIndex iso SetSize 1 @?= Nothing)
-    ]
+  [ testNameTags "isomorphism" ["isomorphism", "set"]
+                 (testIsomorphism iso limit),
+    testNameTags "bounds_low" ["bounds", "set"]
+                 (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                               (return $! decode iso (-1))),
+    testNameTags "size" ["size", "set"] (size iso @?= Nothing) ]
 
 testFinSet iso vals nonval =
   let
@@ -838,13 +631,6 @@ testFinSet iso vals nonval =
     setvals = map Set.fromList (subsequences vals)
     nonvals = map (Set.insert nonval) setvals
     isosize = toInteger (2 ^ numvals)
-
-    checkHighestIndex n =
-      let
-        filteredsetvals = filter ((==) n.  Set.size) setvals
-        m = maximum (map (encode iso) filteredsetvals)
-      in
-        highestIndex iso SetSize (toInteger n) @?= Just m
   in
     [ testNameTags "isomorphism" ["isomorphism", "set"]
                    (testEncodingVals iso setvals),
@@ -858,55 +644,15 @@ testFinSet iso vals nonval =
                                  (return $! decode iso (fromJust (size iso)))),
       testNameTags "inDomain" ["inDomain", "set"] (testInDomain iso setvals),
       testNameTags "not_inDomain" ["inDomain", "hashSet"]
-                   (testNotInDomain iso nonvals),
-      testNameTags "depth_SetSize" ["depth", "set", "SetSize"]
-                   (mapM_ (\s -> fromInteger (depth iso SetSize s) @?=
-                                 Set.size s) setvals),
-      testNameTags "depth_SetElem" ["depth", "set", "SetElem"]
-                   (mapM_ (\val -> depth iso (SetElem ()) val @?= 0) setvals),
-      testNameTags "maxDepth_SetSize" ["maxDepth", "set", "SetSize"]
-                   (maxDepth iso SetSize @?= Just (toInteger numvals)),
-      testNameTags "maxDepth_SetElem" ["maxDepth", "set", "SetElem"]
-                   (maxDepth iso (SetElem ()) @?= Just 0),
-      testNameTags "highestIndex_SetElem" ["highestIndex", "set", "SetElem"]
-                   (highestIndex iso (SetElem ()) 0 @?=
-                    Just (toInteger isosize)),
-      testNameTags "highestIndex_SetSize_n" ["highestIndex", "set", "SetSize"]
-                   (mapM_ checkHighestIndex [0..numvals])
-    ]
+                   (testNotInDomain iso nonvals) ]
 
 testInfHashSet iso limit =
-  let
-    checkSetSizeDepth n =
-      let
-        s = decode iso n
-      in
-        fromInteger (depth iso SetSize s) @?= HashSet.size s
-  in
-    [ testNameTags "isomorphism" ["isomorphism", "hashSet"]
-                   (testIsomorphism iso limit),
-      testNameTags "bounds_low" ["bounds", "hashSet"]
-                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
-                                 (return $! decode iso (-1))),
-      testNameTags "size" ["size", "hashSet"] (size iso @?= Nothing),
-      testNameTags "depth_SetSize" ["depth", "hashSet", "SetSize"]
-                   (mapM_ checkSetSizeDepth [0..limit]),
-      testNameTags "depth_SetElem" ["depth", "hashSet", "SetElem"]
-                   (mapM_ (\n -> depth iso (SetElem ()) (decode iso n) @?= 0)
-                          [0..limit]),
-      testNameTags "maxDepth_SetSize" ["maxDepth", "hashSet", "SetSize"]
-                   (maxDepth iso SetSize @?= Nothing),
-      testNameTags "maxDepth_SetElem" ["maxDepth", "hashSet", "SetElem"]
-                   (maxDepth iso (SetElem ()) @?= Just 0),
-      testNameTags "highestIndex_SetElem" ["highestIndex", "hashSet", "SetElem"]
-                   (highestIndex iso (SetElem ()) 0 @?= Nothing),
-      testNameTags "highestIndex_SetSize_0" ["highestIndex", "hashSet",
-                                             "SetSize"]
-                   (highestIndex iso SetSize 0 @?= Just 0),
-      testNameTags "highestIndex_SetSize_n" ["highestIndex", "hashSet",
-                                             "SetSize"]
-                   (highestIndex iso SetSize 1 @?= Nothing)
-    ]
+  [ testNameTags "isomorphism" ["isomorphism", "hashSet"]
+                 (testIsomorphism iso limit),
+    testNameTags "bounds_low" ["bounds", "hashSet"]
+                 (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                               (return $! decode iso (-1))),
+    testNameTags "size" ["size", "hashSet"] (size iso @?= Nothing) ]
 
 testFinHashSet iso vals nonval =
   let
@@ -914,13 +660,6 @@ testFinHashSet iso vals nonval =
     setvals = map HashSet.fromList (subsequences vals)
     nonvals = map (HashSet.insert nonval) setvals
     isosize = toInteger (2 ^ numvals)
-
-    checkHighestIndex n =
-      let
-        filteredsetvals = filter ((==) n.  HashSet.size) setvals
-        m = maximum (map (encode iso) filteredsetvals)
-      in
-        highestIndex iso SetSize (toInteger n) @?= Just m
   in
     [ testNameTags "isomorphism" ["isomorphism", "hashSet"]
                    (testEncodingVals iso setvals),
@@ -934,23 +673,7 @@ testFinHashSet iso vals nonval =
                                  (return $! decode iso (fromJust (size iso)))),
       testNameTags "inDomain" ["inDomain", "hashSet"] (testInDomain iso setvals),
       testNameTags "not_inDomain" ["inDomain", "hashSet"]
-                   (testNotInDomain iso nonvals),
-      testNameTags "depth_SetSize" ["depth", "hashSet", "SetSize"]
-                   (mapM_ (\s -> fromInteger (depth iso SetSize s) @?=
-                                 HashSet.size s) setvals),
-      testNameTags "depth_SetElem" ["depth", "hashSet", "SetElem"]
-                   (mapM_ (\val -> depth iso (SetElem ()) val @?= 0) setvals),
-      testNameTags "maxDepth_SetSize" ["maxDepth", "hashSet", "SetSize"]
-                   (maxDepth iso SetSize @?= Just (toInteger numvals)),
-      testNameTags "maxDepth_SetElem" ["maxDepth", "hashSet", "SetElem"]
-                   (maxDepth iso (SetElem ()) @?= Just 0),
-      testNameTags "highestIndex_SetElem" ["highestIndex", "hashSet", "SetElem"]
-                   (highestIndex iso (SetElem ()) 0 @?=
-                    Just (toInteger isosize)),
-      testNameTags "highestIndex_SetSize_n" ["highestIndex", "hashSet",
-                                             "SetSize"]
-                   (mapM_ checkHighestIndex [0..numvals])
-    ]
+                   (testNotInDomain iso nonvals) ]
 
 setTests = [
     "infinite" ~: testInfSet (set integralInteger) 10000,
@@ -967,7 +690,7 @@ hashSetTests = [
 
 finiteSeqTests =
   let
-    inner = linearDepthEncoding ['A', 'B', 'C']
+    inner = fromHashableList ['A', 'B', 'C']
     vals = [[], ['A'], ['B'], ['C'], ['A', 'A'], ['A', 'B'], ['A', 'C'],
             ['B', 'A'], ['B', 'B'], ['B', 'C'], ['C', 'A'], ['C', 'B'],
             ['C', 'C'], ['A', 'A', 'A'], ['A', 'A', 'B'], ['A', 'A', 'C'],
@@ -990,24 +713,7 @@ finiteSeqTests =
       testNameTags "size" ["size", "seq"] (size iso @?= Nothing),
       testNameTags "inDomain" ["inDomain", "seq"] (testInDomain iso vals),
       testNameTags "notInDomain" ["inDomain", "seq"]
-                   (testNotInDomain iso nonvals),
-      testNameTags "depth" ["depth", "seq"]
-                   (mapM_ (\val -> depth iso (SeqElem ()) val @?=
-                                   if [] /= val
-                                     then maximum (map (depth inner ()) val)
-                                     else 0)
-                          vals),
-      testNameTags "depth" ["depth", "seq"]
-                   (mapM_ (\val -> depth iso SeqLen val @?=
-                                   toInteger (length val))
-                          vals),
-      testNameTags "maxDepth" ["maxDepth", "seq"]
-                   (maxDepth iso (SeqElem ()) @?= maxDepth inner ()),
-      testNameTags "maxDepth" ["maxDepth", "seq"]
-                   (maxDepth iso SeqLen @?= Nothing),
-      testNameTags "highestIndex" ["highestIndex", "seq"]
-                   (highestIndex iso (SeqElem ()) 0 @?= Nothing)
-    ]
+                   (testNotInDomain iso nonvals) ]
 
 infiniteSeqTests =
   let
@@ -1022,21 +728,7 @@ infiniteSeqTests =
                                  (return $! decode iso (-1))),
       testNameTags "size" ["size", "seq"] (size iso @?= Nothing),
       testNameTags "inDomain" ["inDomain", "seq"]
-                   (testInDomain iso (map (decode iso) [0..limit])),
-      testNameTags "depth" ["depth", "seq"]
-                   (mapM_ (\n -> depth iso (SeqElem ()) (decode iso n) @?= 0)
-                          [0..limit]),
-      testNameTags "depth" ["depth", "seq"]
-                   (mapM_ (\n -> depth iso SeqLen (decode iso n) @?=
-                                   toInteger (length (decode iso n)))
-                          [0..limit]),
-      testNameTags "maxDepth" ["maxDepth", "seq"]
-                   (maxDepth iso (SeqElem ()) @?= Just 0),
-      testNameTags "maxDepth" ["maxDepth", "seq"]
-                   (maxDepth iso SeqLen @?= Nothing),
-      testNameTags "highestIndex" ["highestIndex", "seq"]
-                   (highestIndex iso (SeqElem ()) 0 @?= Nothing)
-  ]
+                   (testInDomain iso (map (decode iso) [0..limit])) ]
 
 seqTests = [
     "finite" ~: finiteSeqTests,
@@ -1062,10 +754,8 @@ treeEncoding =
     unmakeNode Node { rootLabel = label, subForest = children } =
       Just (label, children)
 
-    wrappedInteger = wrapDim (\(SeqElem dim) -> dim) integralInteger
-
     nodeEncoding nodeenc =
-      wrap unmakeNode makeNode (pair' wrappedInteger (seq' nodeenc))
+      wrap unmakeNode makeNode (pair integralInteger (seq nodeenc))
   in
     recursive nodeEncoding
 
@@ -1112,10 +802,6 @@ testlist = [
                                  (nonzero (fromHashableList ['A', 'B', 'C',
                                                              'D', 'E', 'F']))
                                  ['B', 'C', 'D', 'E', 'F'] ['A', 'G'],
-    "linearDepthEncoding" ~:
-      testLinearDepthEncoding ["linearDepthEncoding"]
-                              (linearDepthEncoding ['A', 'B', 'C', 'D', 'E'])
-                              ['A', 'B', 'C', 'D', 'E'] ['F', 'G'],
     "exclude" ~: excludeTests,
     "either" ~: eitherTests,
     "pair" ~: pairTests,
