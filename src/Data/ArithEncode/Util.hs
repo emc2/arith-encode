@@ -129,7 +129,11 @@ function keyenc valenc =
           Just (reverse out)
       | otherwise = Nothing
   in
-    wrap mapToSeq seqToMap (seq (optional valenc))
+    case size keyenc of
+      Just finitesize ->
+        wrap mapToSeq seqToMap (boundedSeq finitesize (optional valenc))
+      Nothing -> 
+        wrap mapToSeq seqToMap (seq (optional valenc))
 
 -- | Build an encoding that produces a (finite partial) function from
 -- one type to another.  This function is represented using a @HashMap@.
