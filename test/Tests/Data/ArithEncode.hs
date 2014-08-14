@@ -47,6 +47,7 @@ import Test.HUnitPlus.Base
 import qualified Data.Array as Array
 import qualified Data.HashMap as HashMap
 import qualified Data.HashSet as HashSet
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 testIsomorphism :: (Hashable ty, Ord ty, Show ty) =>
@@ -515,31 +516,31 @@ finitePowerTest =
     nonvals = [['A', 'C', 'A'], ['A', 'A', 'A', 'A'], ['A', 'A']]
     isosize = toInteger (length vals)
   in
-    [ testNameTags "isomorphism" ["isomorphism", "pair"]
+    [ testNameTags "isomorphism" ["isomorphism", "power"]
                    (testEncodingVals iso vals),
-      testNameTags "size" ["size", "pair"]
+      testNameTags "size" ["size", "power"]
                    (size iso @?= Just isosize),
-      testNameTags "bounds_low" ["bounds", "pair"]
+      testNameTags "bounds_low" ["bounds", "power"]
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (-1))),
-      testNameTags "bounds_high" ["bounds", "pair"]
+      testNameTags "bounds_high" ["bounds", "power"]
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
-                                 (return $! decode iso 12)),
-      testNameTags "inDomain" ["inDomain", "pair"] (testInDomain iso vals),
-      testNameTags "not_inDomain" ["inDomain", "pair"]
+                                 (return $! decode iso 8)),
+      testNameTags "inDomain" ["inDomain", "power"] (testInDomain iso vals),
+      testNameTags "not_inDomain" ["inDomain", "power"]
                    (testNotInDomain iso nonvals) ]
 
 infinitePowerTests len elemiso limit =
   let
     iso = power len elemiso
   in
-    [ testNameTags "isomorphism" ["isomorphism", "pair"]
+    [ testNameTags "isomorphism" ["isomorphism", "power"]
                    (testIsomorphism iso limit),
-      testNameTags "bounds_low" ["bounds", "pair"]
+      testNameTags "bounds_low" ["bounds", "power"]
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (-1))),
-      testNameTags "size" ["size", "pair"] (size iso @?= Nothing),
-      testNameTags "inDomain" ["inDomain", "pair"]
+      testNameTags "size" ["size", "power"] (size iso @?= Nothing),
+      testNameTags "inDomain" ["inDomain", "power"]
                    (testInDomain iso (map (decode iso) [0..limit])) ]
 
 powerTests =
@@ -547,7 +548,6 @@ powerTests =
     "infinite_2" ~: infinitePowerTests 2 integralInteger 100,
     "infinite_3" ~: infinitePowerTests 3 integralInteger 1000,
     "infinite_4" ~: infinitePowerTests 4 integralInteger 10000 ]
-
 
 data Variant a b c d = First a | Second b | Third c | Fourth d
   deriving (Show, Eq, Ord)
@@ -777,6 +777,79 @@ seqTests = [
     "infinite" ~: infiniteSeqTests
   ]
 
+finiteBoundedSeqTest =
+  let
+    iso = boundedSeq 3 (fromHashableList ['A', 'B', 'C'])
+    vals = [[],
+            ['A'], ['B'], ['C'],
+            ['A', 'A'], ['B', 'A'], ['C', 'A'],
+            ['A', 'B'], ['B', 'B'], ['C', 'B'],
+            ['A', 'C'], ['B', 'C'], ['C', 'C'],
+            ['A', 'A', 'A'], ['B', 'A', 'A'], ['C', 'A', 'A'],
+            ['A', 'B', 'A'], ['B', 'B', 'A'], ['C', 'B', 'A'],
+            ['A', 'C', 'A'], ['B', 'C', 'A'], ['C', 'C', 'A'],
+            ['A', 'A', 'B'], ['B', 'A', 'B'], ['C', 'A', 'B'],
+            ['A', 'B', 'B'], ['B', 'B', 'B'], ['C', 'B', 'B'],
+            ['A', 'C', 'B'], ['B', 'C', 'B'], ['C', 'C', 'B'],
+            ['A', 'A', 'C'], ['B', 'A', 'C'], ['C', 'A', 'C'],
+            ['A', 'B', 'C'], ['B', 'B', 'C'], ['C', 'B', 'C'],
+            ['A', 'C', 'C'], ['B', 'C', 'C'], ['C', 'C', 'C']]
+    nonvals = [['A', 'D', 'A'], ['A', 'A', 'A', 'A']]
+    isosize = toInteger (length vals)
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "boundedSeq"]
+                   (testEncodingVals iso vals),
+      testNameTags "size" ["size", "boundedSeq"]
+                   (size iso @?= Just isosize),
+      testNameTags "bounds_low" ["bounds", "boundedSeq"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "bounds_high" ["bounds", "boundedSeq"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso 15)),
+      testNameTags "inDomain" ["inDomain", "boundedSeq"] (testInDomain iso vals),
+      testNameTags "not_inDomain" ["inDomain", "boundedSeq"]
+                   (testNotInDomain iso nonvals) ]
+
+infiniteBoundedSeqTests len elemiso limit =
+  let
+    iso = boundedSeq len elemiso
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "boundedSeq"]
+                   (testIsomorphism iso limit),
+      testNameTags "bounds_low" ["bounds", "boundedSeq"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "size" ["size", "boundedSeq"] (size iso @?= Nothing),
+      testNameTags "inDomain" ["inDomain", "boundedSeq"]
+                   (testInDomain iso (map (decode iso) [0..limit])) ]
+
+boundedSeqTests =
+  [ "finite" ~: finiteBoundedSeqTest,
+    "infinite_2" ~: infiniteBoundedSeqTests 2 integralInteger 100,
+    "infinite_3" ~: infiniteBoundedSeqTests 3 integralInteger 1000,
+    "infinite_4" ~: infiniteBoundedSeqTests 4 integralInteger 10000 ]
+
+instance (Hashable key, Hashable val) => Hashable (Map.Map key val) where
+  hashWithSalt s map = s `hashWithSalt` Map.assocs map
+
+infiniteDomainFunctionTests keyiso valiso =
+  let
+    iso = function keyiso valiso
+  in
+    testInfDimlessEncoding ["function"] iso
+
+functionTests =
+  let
+    infinite = integralInteger
+    finite = fromHashableList ['D', 'E', 'F', 'G']
+    smallfinite = fromHashableList ['A', 'B']
+  in
+    [ "infinite_infinite" ~: infiniteDomainFunctionTests infinite infinite,
+      "infinite_finite" ~: infiniteDomainFunctionTests infinite finite ]
+--      "finite_infinite" ~: infiniteDomainFunctionTests finite infinite ]
+--      "finite_finite" ~: infiniteDomainFunctionTests finite finite ]
+
 instance Hashable ty => Hashable (Tree ty) where
   hashWithSalt s Node { rootLabel = label, subForest = children } =
     s `hashWithSalt` label `hashWithSalt` children
@@ -852,6 +925,8 @@ testlist = [
     "set" ~: setTests,
     "hashSet" ~: hashSetTests,
     "seq" ~: seqTests,
+    "boundedSeq" ~: boundedSeqTests,
+--    "function" ~: functionTests,
     "recursive" ~: treeEncodingTests
   ]
 
