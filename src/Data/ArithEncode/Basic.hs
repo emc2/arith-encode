@@ -101,7 +101,7 @@ module Data.ArithEncode.Basic(
        octet,
        nonet,
        dectet,
---       power,
+       power,
 
        -- *** Sets
        set,
@@ -1022,14 +1022,13 @@ dectet enc1 enc2 enc3 enc4 enc5 enc6 enc7 enc8 enc9 enc10 =
     Encoding { encEncode = newencode, encDecode = newdecode,
                encSize = sizeval, encInDomain = newindomain }
 
-{-
 -- | Common idiom in bounded sets and sequences: take an entropy value
 -- and generate a list of entropy values of a particular length.
 toProdList :: Integer -> Integer -> [Integer]
 toProdList =
   let
-    productList' accum 0 0 = accum
-    productList' accum 0 _ = error "Leftover entropy"
+    productList' accum 1 entropy = reverse (entropy : accum)
+    productList' _ 0 _ = []
     productList' accum count entropy =
       let
         sumval = (isqrt ((8 * entropy) + 1) - 1) `quot` 2
@@ -1042,12 +1041,19 @@ toProdList =
     productList' []
 
 fromProdList :: [Integer] -> Integer
-fromProdList [] = error "Should not see an empty list here"
-fromProdList (first : vals) =
+fromProdList [] = 0
+fromProdList vals =
   let
-    fromProdList accum [] = accum
+    (first : rest) = reverse vals
+    fromProdList' accum [] = accum
+    fromProdList' accum (first' : rest') =
+      let
+        sumval = accum + first'
+        base = (((sumval + 1) * sumval)) `quot` 2
+      in
+        fromProdList' (base + accum) rest'
   in
-    fromProdList first vals
+    fromProdList' first rest
 
 -- | Take an @Encoding@ for elements and a length and produce an
 -- @Encoding@ for lists of exactly that length.
@@ -1056,21 +1062,19 @@ fromProdList (first : vals) =
 -- /exactly/ the given length, as opposed to upper-bounded by it.
 power :: Integer
       -- ^ Number of elements in the resulting lists
-      -> Encoding dim ty
+      -> Encoding ty
       -- ^ @Encoding@ for the elements
-      -> Encoding dim [ty]
+      -> Encoding [ty]
 power len Encoding { encEncode = encodefunc, encDecode = decodefunc,
-                     encSize = sizeval, encInDomain = indomain,
-                     encMaxDepth = maxDepth, encDepth = depth,
-                     encHighestIndex = highindex } =
+                     encSize = sizeval, encInDomain = indomainfunc } =
   let
-    (newencode, newdecode, newsize, newhighindex) =
+    (newencode, newdecode, newsize) =
       case sizeval of
         Just finitesize ->
           let
             newencode' accum [] = accum
-            newencode' accum (head : rest) =
-              newencode' ((accum * len) + encodefunc head) rest
+            newencode' accum (first : rest) =
+              newencode' ((accum * len) + encodefunc first) rest
 
             newdecode' accum 0 0 = accum
             newdecode' _ 0 _ = error "Entropy remaining at end of power decoding"
@@ -1080,12 +1084,9 @@ power len Encoding { encEncode = encodefunc, encDecode = decodefunc,
                 restentropy = entropy `quot` len
                 this = decodefunc thisentropy
               in
-                newdecode' (decodefunc (this : accum) (count - 1) restentropy)
-
-            newhighindex' dim depthval =
-              (finitesize ^ (len - 1)) + highindex dim depthval
+                newdecode' (this : accum) (count - 1) restentropy
           in
-            (newencode' 0, newdecode' [] len, finitesize ^ len, newhighindex')
+            (newencode' 0, newdecode' [] len, Just (finitesize ^ len))
         Nothing ->
           let
             newencode' = fromProdList . map encodefunc
@@ -1093,14 +1094,10 @@ power len Encoding { encEncode = encodefunc, encDecode = decodefunc,
           in
             (newencode', newdecode', Nothing)
 
-    newdepth = maximum . map depthfunc
+    newindomain vals = length vals == fromInteger len && all indomainfunc vals
   in
-    Encode { encEncode = newencode, encDecode = newdecode,
-             encSize = newsize, encInDomain = newindomain,
-             encDepth = newdepth, encMaxDepth = maxDepth,
-             encHighestIndex = newhighindex }
-
--}
+    Encoding { encEncode = newencode, encDecode = newdecode,
+               encSize = newsize, encInDomain = newindomain }
 
 -- | Build an encoding for /finite/ sets of values of a given datatype
 -- from an encoding for that datatype.
