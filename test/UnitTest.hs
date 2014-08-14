@@ -36,7 +36,7 @@ import qualified Tests.Data as Data
 
 tests = [ Data.tests ]
 
-testsuite = TestSuite { suiteName = "unit-tests", suiteConcurrently = True,
+testsuite = TestSuite { suiteName = "UnitTests", suiteConcurrently = True,
                         suiteTests = tests, suiteOptions = [] }
 
 main :: IO ()
