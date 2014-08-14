@@ -138,6 +138,7 @@ import Data.Typeable
 import Prelude hiding (elem, either, seq)
 import Math.NumberTheory.Powers.Squares
 import Math.NumberTheory.Logarithms
+--import Debug.Trace
 
 import qualified Data.Array.IArray as Array
 import qualified Data.Either as Either
@@ -1282,16 +1283,16 @@ boundedSeqCore len Encoding { encEncode = encodefunc, encDecode = decodefunc,
             thislen = toInteger (length vals)
             contentnum = fromProdList (map encodefunc vals)
           in
-            (contentnum * len) + thislen
+            (contentnum * (len - 1)) + thislen
 
         newdecode 0 = []
         newdecode num =
           let
             adjusted = num - 1
-            thislen = adjusted `mod` len
-            contentnum = adjusted `quot` len
+            thislen = adjusted `mod` (len - 1) + 1
+            contentnum = adjusted `quot` (len - 1)
           in
-            map decodefunc (toProdList contentnum thislen)
+            map decodefunc (toProdList thislen contentnum)
       in
         (newencode, newdecode)
     Just finitesize ->
@@ -1301,17 +1302,31 @@ boundedSeqCore len Encoding { encEncode = encodefunc, encDecode = decodefunc,
           let
             thislen = toInteger (length vals)
             base = geometricSum (thislen - 1) finitesize
+
+            newencode' accum [] = accum
+            newencode' accum (first : rest) =
+              newencode' ((accum * finitesize) + encodefunc first) rest
           in
-            base + (fromProdList (map encodefunc vals))
+            base + (newencode' 0 (reverse vals))
 
         newdecode 0 = []
         newdecode num =
           let
-            lowlen = (ilog finitesize num)
+            lowlen = ilog finitesize ((num * (finitesize - 1)) + 1) - 1
             thislen = lowlen + 1
             contentnum = num - (geometricSum lowlen finitesize)
+
+            newdecode' accum 1 entropy = (decodefunc entropy : accum)
+            newdecode' _ 0 _ = []
+            newdecode' accum count entropy =
+              let
+                thisentropy = entropy `mod` finitesize
+                restentropy = entropy `quot` finitesize
+                this = decodefunc thisentropy
+              in
+               newdecode' (this : accum) (count - 1) restentropy
           in
-            map decodefunc (toProdList contentnum thislen)
+            reverse (newdecode' [] thislen contentnum)
       in
         (newencode, newdecode)
 

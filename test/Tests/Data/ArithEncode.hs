@@ -806,7 +806,7 @@ finiteBoundedSeqTest =
                                  (return $! decode iso (-1))),
       testNameTags "bounds_high" ["bounds", "boundedSeq"]
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
-                                 (return $! decode iso 15)),
+                                 (return $! decode iso 40)),
       testNameTags "inDomain" ["inDomain", "boundedSeq"] (testInDomain iso vals),
       testNameTags "not_inDomain" ["inDomain", "boundedSeq"]
                    (testNotInDomain iso nonvals) ]
