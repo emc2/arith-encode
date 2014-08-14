@@ -507,6 +507,28 @@ pairTests =
       "infinite_finite" ~: infinitePairTests integralInteger finite 100,
       "finite_finite" ~: finitePairTests ]
 
+finitePowerTest =
+  let
+    iso = power 3 (fromHashableList ['A', 'B'])
+    vals = [['A', 'A', 'A'], ['B', 'A', 'A'], ['A', 'B', 'A'], ['B', 'B', 'A'],
+            ['A', 'A', 'B'], ['B', 'A', 'B'], ['A', 'B', 'B'], ['B', 'B', 'B']]
+    nonvals = [['A', 'C', 'A'], ['A', 'A', 'A', 'A'], ['A', 'A']]
+    isosize = toInteger (length vals)
+  in
+    [ testNameTags "isomorphism" ["isomorphism", "pair"]
+                   (testEncodingVals iso vals),
+      testNameTags "size" ["size", "pair"]
+                   (size iso @?= Just isosize),
+      testNameTags "bounds_low" ["bounds", "pair"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso (-1))),
+      testNameTags "bounds_high" ["bounds", "pair"]
+                   (assertThrows (\(IllegalArgument _) -> assertSuccess)
+                                 (return $! decode iso 12)),
+      testNameTags "inDomain" ["inDomain", "pair"] (testInDomain iso vals),
+      testNameTags "not_inDomain" ["inDomain", "pair"]
+                   (testNotInDomain iso nonvals) ]
+
 infinitePowerTests len elemiso limit =
   let
     iso = power len elemiso
@@ -521,12 +543,10 @@ infinitePowerTests len elemiso limit =
                    (testInDomain iso (map (decode iso) [0..limit])) ]
 
 powerTests =
-  let
-    finite = fromHashableList ['D', 'E', 'F', 'G']
-  in
-    [ "infinite_2" ~: infinitePowerTests 2 integralInteger 100,
-      "infinite_3" ~: infinitePowerTests 3 integralInteger 1000,
-      "infinite_4" ~: infinitePowerTests 4 integralInteger 10000 ]
+  [ "finite" ~: finitePowerTest,
+    "infinite_2" ~: infinitePowerTests 2 integralInteger 100,
+    "infinite_3" ~: infinitePowerTests 3 integralInteger 1000,
+    "infinite_4" ~: infinitePowerTests 4 integralInteger 10000 ]
 
 
 data Variant a b c d = First a | Second b | Third c | Fourth d

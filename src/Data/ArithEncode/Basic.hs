@@ -1074,14 +1074,14 @@ power len Encoding { encEncode = encodefunc, encDecode = decodefunc,
           let
             newencode' accum [] = accum
             newencode' accum (first : rest) =
-              newencode' ((accum * len) + encodefunc first) rest
+              newencode' ((accum * finitesize) + encodefunc first) rest
 
-            newdecode' accum 0 0 = accum
-            newdecode' _ 0 _ = error "Entropy remaining at end of power decoding"
+            newdecode' accum 1 entropy = (decodefunc entropy : accum)
+            newdecode' _ 0 _ = []
             newdecode' accum count entropy =
               let
-                thisentropy = entropy `mod` len
-                restentropy = entropy `quot` len
+                thisentropy = entropy `mod` finitesize
+                restentropy = entropy `quot` finitesize
                 this = decodefunc thisentropy
               in
                 newdecode' (this : accum) (count - 1) restentropy
@@ -1329,17 +1329,9 @@ boundedSeq len enc @ Encoding { encSize = sizeval, encInDomain = indomainfunc,
     (newencode, newdecode) = boundedSeqCore len enc
     newsize = sizeval >>= geometricSum len
     newindomain vals = length vals <= fromInteger len && all indomainfunc vals
-
-    newdepth SeqLen = length
-    newdepth (SeqElem dim) = maximum . map (depthfunc dim)
-
-    newmaxdepth SeqLen = len
-    newmaxdepth (SeqElem dim) = maxdepthfunc dim
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
-               encSize = size, encInDomain = newindomain,
-               encDepth = newdepth, encMaxDepth = newmaxdepth,
-               encHighestIndex = newhighindex }
+               encSize = size, encInDomain = newindomain }
 
 boundedSeq' :: Integer
             -- ^ The maximum length of the sequence
