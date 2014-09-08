@@ -27,7 +27,7 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, NegativeLiterals #-}
 
 module Tests.Data.ArithEncode(tests) where
 
@@ -41,11 +41,12 @@ import Data.Maybe
 import Data.Tree
 import Data.Word
 import Data.Set(Set)
+import Data.HashSet(HashSet)
 import Prelude hiding (either, union, seq)
 import Test.HUnitPlus.Base
 
 import qualified Data.Array as Array
-import qualified Data.HashMap as HashMap
+import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -656,8 +657,11 @@ unionTests =
 instance Hashable a => Hashable (Set a) where
   hashWithSalt s = Set.foldl hashWithSalt s
 
-instance Hashable (HashSet.Set Integer) where
+instance Hashable (HashSet Integer) where
   hashWithSalt s = foldl hashWithSalt s . sort . HashSet.toList
+
+instance Ord (HashSet Integer) where
+  compare s1 s2 = compare (sort (HashSet.toList s1)) (sort (HashSet.toList s2))
 
 testInfSet iso limit =
   [ testNameTags "isomorphism" ["isomorphism", "set"]
@@ -839,16 +843,90 @@ infiniteDomainFunctionTests keyiso valiso =
   in
     testInfDimlessEncoding ["function"] iso
 
+finiteDomainFunctionTests =
+  let
+    funcs = map Map.fromList
+      [
+        [],
+        [('A','A')],
+        [('A','B')],
+        [('A','C')],
+        [('B','A')],
+        [('B','B')],
+        [('B','C')],
+        [('C','A')],
+        [('C','B')],
+        [('C','C')],
+        [('A','A'),('B','A')],
+        [('A','B'),('B','A')],
+        [('A','C'),('B','A')],
+        [('A','A'),('B','B')],
+        [('A','B'),('B','B')],
+        [('A','C'),('B','B')],
+        [('A','A'),('B','C')],
+        [('A','B'),('B','C')],
+        [('A','C'),('B','C')],
+        [('A','A'),('C','A')],
+        [('A','B'),('C','A')],
+        [('A','C'),('C','A')],
+        [('A','A'),('C','B')],
+        [('A','B'),('C','B')],
+        [('A','C'),('C','B')],
+        [('A','A'),('C','C')],
+        [('A','B'),('C','C')],
+        [('A','C'),('C','C')],
+        [('B','A'),('C','A')],
+        [('B','B'),('C','A')],
+        [('B','C'),('C','A')],
+        [('B','A'),('C','B')],
+        [('B','B'),('C','B')],
+        [('B','C'),('C','B')],
+        [('B','A'),('C','C')],
+        [('B','B'),('C','C')],
+        [('B','C'),('C','C')],
+        [('A','A'),('B','A'),('C','A')],
+        [('A','B'),('B','A'),('C','A')],
+        [('A','C'),('B','A'),('C','A')],
+        [('A','A'),('B','B'),('C','A')],
+        [('A','B'),('B','B'),('C','A')],
+        [('A','C'),('B','B'),('C','A')],
+        [('A','A'),('B','C'),('C','A')],
+        [('A','B'),('B','C'),('C','A')],
+        [('A','C'),('B','C'),('C','A')],
+        [('A','A'),('B','A'),('C','B')],
+        [('A','B'),('B','A'),('C','B')],
+        [('A','C'),('B','A'),('C','B')],
+        [('A','A'),('B','B'),('C','B')],
+        [('A','B'),('B','B'),('C','B')],
+        [('A','C'),('B','B'),('C','B')],
+        [('A','A'),('B','C'),('C','B')],
+        [('A','B'),('B','C'),('C','B')],
+        [('A','C'),('B','C'),('C','B')],
+        [('A','A'),('B','A'),('C','C')],
+        [('A','B'),('B','A'),('C','C')],
+        [('A','C'),('B','A'),('C','C')],
+        [('A','A'),('B','B'),('C','C')],
+        [('A','B'),('B','B'),('C','C')],
+        [('A','C'),('B','B'),('C','C')],
+        [('A','A'),('B','C'),('C','C')],
+        [('A','B'),('B','C'),('C','C')],
+        [('A','C'),('B','C'),('C','C')]
+      ]
+    nonvals = map Map.fromList [[('D', 'A')], [('A', 'A'),('B', 'E')]]
+    finite = fromHashableList ['A', 'B', 'C']
+    iso = function finite finite
+  in
+    testFiniteEncodingWithVals ["function"] iso funcs nonvals
+
 functionTests =
   let
     infinite = integralInteger
     finite = fromHashableList ['D', 'E', 'F', 'G']
-    smallfinite = fromHashableList ['A', 'B']
   in
     [ "infinite_infinite" ~: infiniteDomainFunctionTests infinite infinite,
-      "infinite_finite" ~: infiniteDomainFunctionTests infinite finite ]
---      "finite_infinite" ~: infiniteDomainFunctionTests finite infinite ]
---      "finite_finite" ~: infiniteDomainFunctionTests finite finite ]
+      "infinite_finite" ~: infiniteDomainFunctionTests infinite finite,
+      "finite_infinite" ~: infiniteDomainFunctionTests finite infinite,
+      "finite_finite" ~: finiteDomainFunctionTests ]
 
 instance Hashable ty => Hashable (Tree ty) where
   hashWithSalt s Node { rootLabel = label, subForest = children } =

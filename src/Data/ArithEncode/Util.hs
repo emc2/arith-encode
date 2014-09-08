@@ -60,11 +60,12 @@ import Data.Hashable
 import Data.List
 import Data.Maybe
 import Data.Set(Set)
+import Data.HashMap.Lazy(HashMap)
+import Data.HashSet(HashSet)
 import Data.Tree
 import Prelude hiding (seq)
 
-import qualified Data.HashMap as HashMap
-import qualified Data.HashSet as HashSet
+import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -93,7 +94,7 @@ nonEmptySet = nonzero . set
 nonEmptyHashSet :: (Hashable ty, Ord ty) =>
                    Encoding ty
                 -- ^ The encoding for the element type
-                -> Encoding (HashSet.Set ty)
+                -> Encoding (HashSet ty)
 nonEmptyHashSet = nonzero . hashSet
 
 -- | Build an encoding that produces a (finite partial) function from
@@ -142,7 +143,7 @@ functionHashable :: (Ord keyty, Hashable keyty) =>
                  -- ^ The encoding for the domain type (ie. key type)
                  -> Encoding valty
                  -- ^ The encoding for the range type (ie. value type)
-                 -> Encoding (HashMap.Map keyty valty)
+                 -> Encoding (HashMap keyty valty)
 functionHashable keyenc valenc =
   let
     seqToMap val =
@@ -162,7 +163,7 @@ functionHashable keyenc valenc =
 
           sorted = sortBy (\(a, _) (b, _) -> compare a b)
                           (map (\(key, val') -> (encode keyenc key, val'))
-                               (HashMap.assocs val))
+                               (HashMap.toList val))
 
           (_, out) = foldl foldfun (0, []) sorted
         in
@@ -190,7 +191,7 @@ relationHashable :: (Hashable keyty, Ord keyty, Hashable valty, Ord valty) =>
                  -- ^ The encoding for the left-hand type (ie. key type)
                  -> Encoding valty
                  -- ^ The encoding for the right-hand type (ie. value type)
-                 -> Encoding (HashMap.Map keyty (HashSet.Set valty))
+                 -> Encoding (HashMap keyty (HashSet valty))
 relationHashable keyenc = functionHashable keyenc . hashSet
 
 -- | Build an encoding that produces trees from an encoding for the

@@ -134,6 +134,7 @@ import Data.Hashable
 import Data.List hiding (elem, union)
 import Data.Maybe
 import Data.Set(Set)
+import Data.HashSet(HashSet)
 import Data.Typeable
 import Prelude hiding (elem, either, seq)
 import Math.NumberTheory.Powers.Squares
@@ -142,7 +143,7 @@ import Math.NumberTheory.Logarithms
 
 import qualified Data.Array.IArray as Array
 import qualified Data.Either as Either
-import qualified Data.HashMap as HashMap
+import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -1135,12 +1136,12 @@ set Encoding { encEncode = encodefunc, encDecode = decodefunc,
 -- from an encoding for that datatype.  Similar to @set@, but uses
 -- @HashSet@ instead
 hashSet :: (Hashable ty, Ord ty) =>
-           Encoding ty -> Encoding (HashSet.Set ty)
+           Encoding ty -> Encoding (HashSet ty)
 hashSet Encoding { encEncode = encodefunc, encDecode = decodefunc,
                    encSize = sizeval, encInDomain = indomainfunc } =
   let
     newEncode =
-      HashSet.fold (\elem n -> setBit n (fromInteger (encodefunc elem))) 0
+      HashSet.foldr (\elem n -> setBit n (fromInteger (encodefunc elem))) 0
 
     newDecode =
       let
