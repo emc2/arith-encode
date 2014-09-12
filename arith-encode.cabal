@@ -1,6 +1,6 @@
 Name:                   arith-encode
 Category:               Testing, Test, Serialization, Data
-Version:                0.5.0
+Version:                0.6.0
 License:                BSD3
 License-File:           LICENSE
 Author:                 Eric McCorkle
@@ -16,10 +16,11 @@ Description:
   numbers (known as Godel numbering).  The library provides functionality for defining
   multiple such encodings for a given datatype, as well as a collection of stock
   encodings and combinators which can be used to build more complex encodings.
-
+  .
   This has various uses, among them binary serialization/deserialization and
   enumeration testing.
-
+  .
+  This is the first release candidate for 1.0 (the initial release).
 Build-type:             Simple
 Cabal-version:          >= 1.16
 
