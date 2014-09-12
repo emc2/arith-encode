@@ -139,6 +139,7 @@ import Data.Typeable
 import Prelude hiding (elem, either, seq)
 import Math.NumberTheory.Powers.Squares
 import Math.NumberTheory.Logarithms
+import Data.Word
 --import Debug.Trace
 
 import qualified Data.Array.IArray as Array
@@ -317,9 +318,9 @@ fromHashableList :: forall ty. (Hashable ty, Ord ty)
                  -- natural numbers.
 fromHashableList elems =
   let
-    len = length elems
+    len = fromIntegral (length elems)
 
-    revmap :: Array Int ty
+    revmap :: Array Word ty
     revmap = Array.listArray (0, len) elems
 
     fwdmap = HashMap.fromList (zip elems [0..len])
@@ -339,9 +340,9 @@ fromOrdList :: forall ty . Ord ty
             -- numbers.
 fromOrdList elems =
   let
-    len = length elems
+    len = fromIntegral (length elems)
 
-    revmap :: Array Int ty
+    revmap :: Array Word ty
     revmap = Array.listArray (0, len) elems
 
     fwdmap = Map.fromList (zip elems [0..len])
@@ -1172,11 +1173,9 @@ seqCore Encoding { encEncode = encodefunc, encDecode = decodefunc,
     -- e_i is encoded as e_n + s e_(n-1) + ... s^n e_1
     Just finitesize ->
       let
-        withendsize = finitesize + 1
-
         newencodefunc =
           let
-            foldfun accum = (((accum * withendsize) + 1) +) . encodefunc
+            foldfun accum = (((accum * finitesize) + 1) +) . encodefunc
           in
            foldl foldfun 0
 
@@ -1185,9 +1184,9 @@ seqCore Encoding { encEncode = encodefunc, encDecode = decodefunc,
             newdecodefunc' accum 0 = accum
             newdecodefunc' accum num =
               let
-                decoded = decodefunc ((num `mod` withendsize) - 1)
+                decoded = decodefunc ((num - 1) `mod` finitesize)
               in
-               newdecodefunc' (decoded : accum) (num `quot` withendsize)
+               newdecodefunc' (decoded : accum) ((num - 1) `quot` finitesize)
           in
            newdecodefunc' []
       in

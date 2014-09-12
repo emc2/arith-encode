@@ -28,6 +28,7 @@
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
 {-# OPTIONS_GHC -Wall -Werror #-}
+{-# LANGUAGE DeriveDataTypeable, ScopedTypeVariables #-}
 
 -- | Derived encodings for standard datatypes.
 --
@@ -39,6 +40,7 @@ module Data.ArithEncode.Util(
 
        -- * Non-Empty Containers
        nonEmptySeq,
+       nonEmptyOptionSeq,
        nonEmptySet,
        nonEmptyHashSet,
 
@@ -64,6 +66,7 @@ import Data.HashMap.Lazy(HashMap)
 import Data.HashSet(HashSet)
 import Data.Tree
 import Prelude hiding (seq)
+--import Debug.Trace
 
 import qualified Data.HashMap.Lazy as HashMap
 import qualified Data.Map as Map
@@ -97,9 +100,49 @@ nonEmptyHashSet :: (Hashable ty, Ord ty) =>
                 -> Encoding (HashSet ty)
 nonEmptyHashSet = nonzero . hashSet
 
+-- | Build an encoding for lists of @Maybe@s, where the first element
+-- of the list is always guaranteed not to be @Nothing@.  This is
+-- useful for building function encodings.
+nonEmptyOptionSeq :: Encoding ty
+                  -- ^ The encoding for the element type
+                  -> Encoding [Maybe ty]
+nonEmptyOptionSeq enc =
+  let
+    fwdfunc Nothing = Just []
+    fwdfunc (Just (first, rest)) = Just (reverse (Just first : rest))
+
+    revfunc' [] = Just Nothing
+    revfunc' (Just first : rest) = Just (Just (first, rest))
+    revfunc' _ = Nothing
+
+    revfunc = revfunc' . reverse
+  in
+    wrap revfunc fwdfunc (optional (pair enc (seq (optional enc))))
+
+-- | Build an encoding for bounded-length lists of @Maybe@s, where the
+-- first element of the list is always guaranteed not to be @Nothing@.
+-- This is useful for building function encodings.
+nonEmptyBoundedOptionSeq :: Integer
+                         -- ^ The maximum length of the sequence
+                         -> Encoding ty
+                         -- ^ The encoding for the element type
+                         -> Encoding [Maybe ty]
+nonEmptyBoundedOptionSeq len enc =
+  let
+    fwdfunc Nothing = Just []
+    fwdfunc (Just (first, rest)) = Just (reverse (Just first : rest))
+
+    revfunc' [] = Just Nothing
+    revfunc' (Just first : rest) = Just (Just (first, rest))
+    revfunc' _ = Nothing
+
+    revfunc = revfunc' . reverse
+  in
+    wrap revfunc fwdfunc (optional (pair enc (boundedSeq (len - 1) (optional enc))))
+
 -- | Build an encoding that produces a (finite partial) function from
 -- one type to another.  This function is represented using a @Map@.
-function :: (Ord keyty) =>
+function :: Ord keyty =>
             Encoding keyty
          -- ^ The encoding for the domain type (ie. key type)
          -> Encoding valty
@@ -111,8 +154,10 @@ function keyenc valenc =
       let
         convertEnt (_, Nothing) = Nothing
         convertEnt (key', Just val') = Just (decode keyenc key', val')
+
+        contents = catMaybes (map convertEnt (zip (iterate (+ 1) 0) val))
       in
-        Just (Map.fromList (catMaybes (map convertEnt (zip (iterate (+ 1) 0) val))))
+        Just (Map.fromList contents)
 
     mapToSeq val
       | all (inDomain keyenc) (Map.keys val) =
@@ -126,15 +171,17 @@ function keyenc valenc =
                                (Map.assocs val))
 
           (_, out) = foldl foldfun (0, []) sorted
+          reversed = reverse out
         in
-          Just (reverse out)
+          Just reversed
       | otherwise = Nothing
+
+    innerenc =
+      case size keyenc of
+        Just finitesize -> nonEmptyBoundedOptionSeq finitesize valenc
+        Nothing -> nonEmptyOptionSeq valenc
   in
-    case size keyenc of
-      Just finitesize ->
-        wrap mapToSeq seqToMap (boundedSeq finitesize (optional valenc))
-      Nothing -> 
-        wrap mapToSeq seqToMap (seq (optional valenc))
+    wrap mapToSeq seqToMap innerenc
 
 -- | Build an encoding that produces a (finite partial) function from
 -- one type to another.  This function is represented using a @HashMap@.
@@ -150,9 +197,10 @@ functionHashable keyenc valenc =
       let
         convertEnt (_, Nothing) = Nothing
         convertEnt (key', Just val') = Just (decode keyenc key', val')
+
+        contents = catMaybes (map convertEnt (zip (iterate (+ 1) 0) val))
       in
-        Just (HashMap.fromList (catMaybes (map convertEnt
-                                               (zip (iterate (+ 1) 0) val))))
+        Just (HashMap.fromList contents)
 
     mapToSeq val
       | all (inDomain keyenc) (HashMap.keys val) =
@@ -166,11 +214,17 @@ functionHashable keyenc valenc =
                                (HashMap.toList val))
 
           (_, out) = foldl foldfun (0, []) sorted
+          reversed = reverse out
         in
-          Just (reverse out)
+          Just reversed
       | otherwise = Nothing
+
+    innerenc =
+      case size keyenc of
+        Just finitesize -> nonEmptyBoundedOptionSeq finitesize valenc
+        Nothing -> nonEmptyOptionSeq valenc
   in
-    wrap mapToSeq seqToMap (seq (optional valenc))
+    wrap mapToSeq seqToMap innerenc
 
 -- | Build an encoding that produces relations between two types.
 -- These relations are represented as @Map@s from the first type to
@@ -181,7 +235,7 @@ relation :: (Ord keyty, Ord valty) =>
          -> Encoding valty
          -- ^ The encoding for the right-hand type (ie. value type)
          -> Encoding (Map.Map keyty (Set.Set valty))
-relation keyenc = function keyenc . set
+relation keyenc = function keyenc . nonEmptySet
 
 -- | Build an encoding that produces relations between two types.
 -- These relations are represented as @HashMap@s from the first type to
@@ -192,7 +246,7 @@ relationHashable :: (Hashable keyty, Ord keyty, Hashable valty, Ord valty) =>
                  -> Encoding valty
                  -- ^ The encoding for the right-hand type (ie. value type)
                  -> Encoding (HashMap keyty (HashSet valty))
-relationHashable keyenc = functionHashable keyenc . hashSet
+relationHashable keyenc = functionHashable keyenc . nonEmptyHashSet
 
 -- | Build an encoding that produces trees from an encoding for the
 -- node labels.
