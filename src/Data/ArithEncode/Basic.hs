@@ -41,7 +41,7 @@
 -- (and the variants thereof) are used to synthetically construct an
 -- encoding from the fundamental operations.
 --
--- The 'IllegalArgument' exception datatype, as well as the seven
+-- The 'IllegalArgument' exception datatype, as well as the
 -- fundamental operations are also defined here.
 --
 -- In addition to this, a set of basic definitions and constructions
@@ -67,7 +67,6 @@ module Data.ArithEncode.Basic(
 
        -- ** Basic Encodings
        identity,
-       void,
        singleton,
        integral,
        interval,
@@ -127,7 +126,7 @@ module Data.ArithEncode.Basic(
        ) where
 
 import Control.Exception
-import Control.Monad hiding (void)
+import Control.Monad
 import Data.Array.IArray(Array)
 import Data.Bits
 import Data.Hashable
@@ -150,7 +149,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- | An exception to be thrown if an illegal argument is given to
--- 'encode', 'decode', 'depth', or 'highestIndex'.
+-- 'encode', 'decode'.
 data IllegalArgument = IllegalArgument !String
   deriving Typeable
 
@@ -206,7 +205,7 @@ mkInfEncoding encodefunc decodefunc indomain =
 -- | Encode a @ty@ as a positive 'Integer' (ie. a natural number).
 --
 -- If the given @ty@ is not in the domain of the 'Encoding' (meaning,
--- 'inDomain' returns 'True'), the underlying implementation /may/
+-- 'inDomain' returns 'False'), the underlying implementation /may/
 -- throw 'IllegalArgument'.  However, this is not /strictly/ required;
 -- therefore, do not rely on 'IllegalArgument' being thrown.
 encode :: Encoding ty
@@ -264,15 +263,9 @@ identity = mkInfEncoding id id (>= 0)
 singleton :: Eq ty => ty -> Encoding ty
 singleton val = mkEncoding (const 0) (const val) (Just 1) (val ==)
 
--- | An empty encoding, which contains no mappings.
-void :: Encoding b
-void = Encoding { encEncode = (\_ -> throw (IllegalArgument "void encoding")),
-                  encDecode = (\_ -> throw (IllegalArgument "void encoding")),
-                  encSize = Just 0, encInDomain = const False }
-
 -- | An encoding of /all/ integers.
 --
--- Note: this is /emph/ not an identity mapping.
+-- Note: this is /not/ an identity mapping.
 integral :: Integral n => Encoding n
 integral =
   let
@@ -355,11 +348,6 @@ fromOrdList elems =
 
 -- | Wrap an encoding using a pair of functions.  These functions must
 -- also define an isomorphism.
---
--- The encoding resulting from @wrapEncoding fwd rev enc@ implements
--- @depth@ as @depth enc . fwd@, which only works if @fwd@ preserves
--- all depths.  For more complex cases, use @mkEncoding@ to define a
--- new encoding.
 wrap :: (a -> Maybe b)
      -- ^ The forward encoding function.
      -> (b -> Maybe a)
@@ -385,9 +373,7 @@ wrap fwd rev enc @ Encoding { encEncode = encodefunc, encDecode = decodefunc,
           encInDomain = maybe False indomainfunc . fwd }
 
 -- | Generate an encoding for @Maybe ty@ from an inner encoding for
--- @ty@.  This adds one level of depth: @Nothing@ has depth @0@, and
--- the rest of the depths are determined by adding one to the depths
--- from the inner encoding.
+-- @ty@.
 optional :: Encoding ty -> Encoding (Maybe ty)
 optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
                     encSize = sizeval, encInDomain = indomainfunc } =
@@ -405,9 +391,7 @@ optional Encoding { encEncode = encodefunc, encDecode = decodefunc,
                encSize = newsize, encInDomain = newindomain }
 
 -- | The dual of @optional@.  This construction assumes that @Nothing@
--- maps to @0@, and removes it from the input domain.  It also assumes
--- that @Nothing@ has depth @0@, and everything else has a higher
--- depth.
+-- maps to @0@, and removes it from the input domain.
 --
 -- Using this construction on encodings for @Maybe ty@ which are not
 -- produced by @optional@ may have unexpected results.
@@ -1795,7 +1779,7 @@ recursive9 genfunc1 genfunc2 genfunc3 genfunc4 genfunc5
   in
     encs
 
--- | A recursive construction for eight mutually-recursive constructions.
+-- | A recursive construction for ten mutually-recursive constructions.
 recursive10 :: ((Encoding ty1, Encoding ty2, Encoding ty3, Encoding ty4,
                  Encoding ty5, Encoding ty6, Encoding ty7, Encoding ty8,
                  Encoding ty9, Encoding ty10) -> Encoding ty1)

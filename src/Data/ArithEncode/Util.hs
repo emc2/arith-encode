@@ -37,6 +37,7 @@
 module Data.ArithEncode.Util(
        -- * Simple Encodings
        unit,
+       void,
 
        -- * Non-Empty Containers
        nonEmptySeq,
@@ -57,6 +58,7 @@ module Data.ArithEncode.Util(
        tree
        ) where
 
+import Control.Exception
 import Data.ArithEncode.Basic
 import Data.Hashable
 import Data.List
@@ -75,6 +77,12 @@ import qualified Data.Set as Set
 -- | An encoding that produces @()@.
 unit :: Encoding ()
 unit = singleton ()
+
+-- | An empty encoding, which contains no mappings.
+void :: Encoding b
+void = mkEncoding (\_ -> throw (IllegalArgument "void encoding"))
+                  (\_ -> throw (IllegalArgument "void encoding"))
+                  (Just 0) (const False)
 
 -- | Build an encoding that produces non-empty sequences from an
 -- encoding for the elements of the sequence.
@@ -100,7 +108,7 @@ nonEmptyHashSet :: (Hashable ty, Ord ty) =>
                 -> Encoding (HashSet ty)
 nonEmptyHashSet = nonzero . hashSet
 
--- | Build an encoding for lists of @Maybe@s, where the first element
+-- | Build an encoding for lists of @Maybe@s, where the last element
 -- of the list is always guaranteed not to be @Nothing@.  This is
 -- useful for building function encodings.
 nonEmptyOptionSeq :: Encoding ty
@@ -120,7 +128,7 @@ nonEmptyOptionSeq enc =
     wrap revfunc fwdfunc (optional (pair enc (seq (optional enc))))
 
 -- | Build an encoding for bounded-length lists of @Maybe@s, where the
--- first element of the list is always guaranteed not to be @Nothing@.
+-- last element of the list is always guaranteed not to be @Nothing@.
 -- This is useful for building function encodings.
 nonEmptyBoundedOptionSeq :: Integer
                          -- ^ The maximum length of the sequence
