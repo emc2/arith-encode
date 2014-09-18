@@ -30,11 +30,41 @@
 
 module Tests.Data.ArithEncode.Binary(tests) where
 
+import Data.ArithEncode
+import Data.ArithEncode.Binary
+import Data.Binary.Get
+import Data.Binary.Put
+import Data.Bits
 import Test.HUnitPlus.Base
-import Tests.Data.ArithEncode.TestUtils
+import Tests.Data.ArithEncode.TestUtils(integralInteger, intervalInteger)
+
+testPutGet :: (Eq ty, Show ty) => Encoding ty -> ty -> Assertion
+testPutGet enc val =
+  let
+    bs = runPut (putWithEncoding enc val)
+    val' = runGet (getWithEncoding enc) bs
+  in do
+    val @=? val'
+
+testFiniteEncoding :: (Eq ty, Show ty) => String -> Encoding ty -> [ty] -> Test
+testFiniteEncoding name enc vals =
+  name ~: mapM_ (testPutGet enc) vals
+
+infiniteVals = [0..20000] ++
+  [((1 `shiftL` 64) - 0x100)..((1 `shiftL` 64) + 0x100)] ++
+  (map (\n -> product (map (\m -> m * 2 + 1) [1..n])) [1..6000])
 
 testlist :: [Test]
-testlist = []
+testlist = [
+    testFiniteEncoding "singleton" (singleton 1) [1],
+    testFiniteEncoding "finite_2" (intervalInteger 1 2) [1, 2],
+    testFiniteEncoding "finite_10" (intervalInteger 1 10) [1..10],
+    testFiniteEncoding "finite_100" (intervalInteger 1 100) [1..100],
+    testFiniteEncoding "finite_10000" (intervalInteger 1 10000) [1..10000],
+    testFiniteEncoding "finite_64bit" (intervalInteger 0 0x100000000000000000000)
+                                      [1..10000],
+    testFiniteEncoding "infinite" integralInteger infiniteVals
+  ]
 
 tests :: Test
 tests = "Binary" ~: testlist

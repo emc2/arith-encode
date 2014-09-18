@@ -81,7 +81,7 @@ getNatural bytes =
           getNatural' ((toInteger input `shiftL` (count * 8)) .|. accum) (count + 1)
       | otherwise = return accum
   in
-    getNatural' 0 bytes
+    getNatural' 0 0
 
 -- | Use an @Encoding@ to extract a @ty@ from binary data.
 getWithEncoding :: Encoding ty
@@ -137,21 +137,21 @@ putNatural :: Int -> Integer -> Put
 putNatural 0 0 = return ()
 putNatural 0 _ = error "Data remaining at end of encoding"
 putNatural remaining natural
-  | remaining < 8 =
+  | remaining > 8 =
     let
       output = fromInteger (natural .&. 0xffffffffffffffff)
       rest = natural `shiftR` 64
     in do
       putWord64le output
       putNatural (remaining - 8) rest
-  | remaining < 4 =
+  | remaining > 4 =
     let
       output = fromInteger (natural .&. 0xffffffff)
       rest = natural `shiftR` 32
     in do
       putWord32le output
       putNatural (remaining - 4) rest
-  | remaining < 2 =
+  | remaining > 2 =
     let
       output = fromInteger (natural .&. 0xffff)
       rest = natural `shiftR` 16
