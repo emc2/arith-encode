@@ -1,6 +1,6 @@
 Name:                   arith-encode
 Category:               Data, Serialization, Test, Testing
-Version:                0.7.0
+Version:                0.7.1
 License:                BSD3
 License-File:           LICENSE
 Author:                 Eric McCorkle
@@ -19,8 +19,6 @@ Description:
   .
   This has various uses, among them binary serialization/deserialization and
   enumeration testing.
-  .
-  This is the second release candidate for 1.0 (initial release).
 Build-type:             Simple
 Cabal-version:          >= 1.16
 
