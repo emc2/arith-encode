@@ -167,7 +167,11 @@ putNatural remaining natural
       putNatural (remaining - 1) rest
 
 -- | Use an @Encoding@ to write a @ty@ out as binary data.
-putWithEncoding :: Encoding ty -> ty -> Put
+putWithEncoding :: Encoding ty
+                -- ^ The encoding to use.
+                -> ty
+                -- ^ The value to encode.
+                -> Put
 putWithEncoding enc val =
   case size enc of
     Just 0 -> error "Cannot encode with empty encoding"
