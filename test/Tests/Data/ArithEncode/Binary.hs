@@ -27,22 +27,14 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
-{-# LANGUAGE FlexibleInstances, NegativeLiterals #-}
 
-module Tests.Data.ArithEncode(tests) where
+module Tests.Data.ArithEncode.Binary(tests) where
 
 import Test.HUnitPlus.Base
-
-import qualified Tests.Data.ArithEncode.Basic as Basic
-import qualified Tests.Data.ArithEncode.Binary as Binary
-import qualified Tests.Data.ArithEncode.Util as Util
+import Tests.Data.ArithEncode.TestUtils
 
 testlist :: [Test]
-testlist = [
-    Basic.tests,
-    Util.tests,
-    Binary.tests
-  ]
+testlist = []
 
 tests :: Test
-tests = "ArithEncode" ~: testlist
+tests = "Binary" ~: testlist

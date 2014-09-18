@@ -29,6 +29,23 @@
 -- SUCH DAMAGE.
 {-# OPTIONS_GHC -Wall -Werror #-}
 
+-- | Facilities for using @Encoding@s as binary serializers.  The
+-- resulting binary format is, for the most part, determined by the
+-- @Encoding@, and therefore is within a constant factor of
+-- succintness.
+--
+-- In all cases, little-endian byte ordering is used in order to allow
+-- for very large data to be read in an decoded lazily.  (Note:
+-- Haskell's libraries do not provide support for this functionality
+-- at this time).
+--
+-- For finite @Encoding@s, the binary format is just the little-endian
+-- encoding of the encoded value, using as few bytes as necessary to
+-- represent the largest encoded value.
+--
+-- For infinite @Encoding@s, the binary format includes a length field
+-- for most values.  The current encoding uses length fields of
+-- different sizes, depending on the size of the encoded value.
 module Data.ArithEncode.Binary(
        getWithEncoding,
        putWithEncoding
@@ -66,7 +83,10 @@ getNatural bytes =
   in
     getNatural' 0 bytes
 
-getWithEncoding :: Encoding ty -> Get ty
+-- | Use an @Encoding@ to extract a @ty@ from binary data.
+getWithEncoding :: Encoding ty
+                -- ^ The encoding to use.
+                -> Get ty
 getWithEncoding enc =
   case size enc of
     Just 0 -> error "Cannot decode with empty encoding"
@@ -146,6 +166,7 @@ putNatural remaining natural
       putWord8 output
       putNatural (remaining - 1) rest
 
+-- | Use an @Encoding@ to write a @ty@ out as binary data.
 putWithEncoding :: Encoding ty -> ty -> Put
 putWithEncoding enc val =
   case size enc of
