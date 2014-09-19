@@ -675,7 +675,7 @@ infiniteBoundedSeqTests len elemiso limit =
   in
     [ testNameTags "isomorphism" ["isomorphism", "boundedSeq"]
                    (testIsomorphism iso limit),
-      testNameTags "bounds_low" ["bounds", "boundedSeq"]
+      testNameTags "boundslow" ["bounds", "boundedSeq"]
                    (assertThrows (\(IllegalArgument _) -> assertSuccess)
                                  (return $! decode iso (-1))),
       testNameTags "size" ["size", "boundedSeq"] (size iso @?= Nothing),
@@ -768,4 +768,4 @@ testlist = [
   ]
 
 tests :: Test
-tests = "ArithEncode" ~: testlist
+tests = "Basic" ~: testlist
