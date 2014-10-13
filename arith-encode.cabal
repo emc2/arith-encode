@@ -1,11 +1,11 @@
 Name:                   arith-encode
 Category:               Data, Serialization, Test, Testing
-Version:                0.7.1
+Version:                1.0.0
 License:                BSD3
 License-File:           LICENSE
 Author:                 Eric McCorkle
 Maintainer:             Eric McCorkle <emc2@metricspace.net>
-Stability:              Beta
+Stability:              Stable
 Synopsis:               A practical arithmetic encoding (aka Godel numbering) library.
 Homepage:               https://github.com/emc2/arith-encode
 Bug-Reports:            https://github.com/emc2/arith-encode/issues
