@@ -313,7 +313,7 @@ fromHashableList elems =
   let
     len = fromIntegral (length elems)
 
-    revmap :: Array Word ty
+    revmap :: Array Data.Word.Word ty
     revmap = Array.listArray (0, len) elems
 
     fwdmap = HashMap.fromList (zip elems [0..len])
