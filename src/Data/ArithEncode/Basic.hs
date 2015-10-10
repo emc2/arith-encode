@@ -1269,7 +1269,7 @@ boundedSeqCore len Encoding { encEncode = encodefunc, encDecode = decodefunc,
             thislen = toInteger (length vals)
             contentnum = fromProdList (map encodefunc vals)
           in
-            (contentnum * (len - 1)) + thislen
+            (contentnum * len) + thislen
 
         newdecode 0 = []
         newdecode num =
