@@ -1275,10 +1275,10 @@ boundedSeqCore len Encoding { encEncode = encodefunc, encDecode = decodefunc,
         newdecode num =
           let
             adjusted = num - 1
-            thislen = adjusted `mod` (len - 1) + 1
-            contentnum = adjusted `quot` (len - 1)
+            (remainingEntropy, lengthEntropy) = adjusted `quotRem` len
+            thislen = lengthEntropy + 1
           in
-            map decodefunc (toProdList thislen contentnum)
+            map decodefunc (toProdList thislen remainingEntropy)
       in
         (newencode, newdecode)
     Just 0 -> (\[] -> 0, \0 -> [])
