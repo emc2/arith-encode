@@ -1248,6 +1248,8 @@ seq enc @ Encoding { encInDomain = indomainfunc } =
 
 -- | Sum of finite geometric series
 geometricSum :: Integer -> Integer -> Integer
+-- list of unit needs a special case to avoid 0/0
+geometricSum len 1 = len + 1
 geometricSum len base = (1 - base ^ (len + 1)) `quot` (1 - base)
 
 -- | Integer logarithm (for base b and n, find largest i such that b^i
@@ -1279,6 +1281,8 @@ boundedSeqCore len Encoding { encEncode = encodefunc, encDecode = decodefunc,
             map decodefunc (toProdList thislen contentnum)
       in
         (newencode, newdecode)
+    Just 0 -> (\[] -> 0, \0 -> [])
+    Just 1 -> (genericLength, flip genericReplicate (decodefunc 0))
     Just finitesize ->
       let
         newencode [] = 0
@@ -1324,7 +1328,9 @@ boundedSeq :: Integer
 boundedSeq len enc @ Encoding { encSize = sizeval, encInDomain = indomainfunc } =
   let
     (newencode, newdecode) = boundedSeqCore len enc
-    newsize = sizeval >>= return . geometricSum len
+    newsize = case len of
+      0 -> Just 1 --even if the list members are infinite
+      _ -> fmap (geometricSum len) sizeval
     newindomain vals = length vals <= fromInteger len && all indomainfunc vals
   in
     Encoding { encEncode = newencode, encDecode = newdecode,
