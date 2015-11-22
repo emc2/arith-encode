@@ -27,7 +27,7 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
-{-# OPTIONS_GHC -Wall -Werror -funbox-strict-fields #-}
+{-# OPTIONS_GHC -Wall -funbox-strict-fields #-}
 {-# LANGUAGE DeriveDataTypeable, ScopedTypeVariables #-}
 
 -- | Definition of 'Encoding', and a set of fundamental 'Encoding's
