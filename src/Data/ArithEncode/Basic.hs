@@ -136,8 +136,8 @@ import Data.Set(Set)
 import Data.HashSet(HashSet)
 import Data.Typeable
 import Prelude hiding (elem, either, seq)
-import Math.NumberTheory.Powers.Squares
-import Math.NumberTheory.Logarithms
+import Math.NumberTheory.Powers.Squares (integerSquareRoot')
+import Math.NumberTheory.Logarithms (integerLogBase')
 import Data.Word
 --import Debug.Trace
 
