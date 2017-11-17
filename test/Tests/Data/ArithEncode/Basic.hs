@@ -80,7 +80,7 @@ intervalTests = [
           testFiniteEncodingWithVals ["interval", "Integer"]
                                      (intervalInteger (-2000) 2000)
                                      [-2000..2000] ([(-10000)..(-2001)] ++
-                                                     [2001..0]),
+                                                     [2001,2000..0]),
         "neg10000_neg2000" ~:
           testFiniteEncodingWithVals ["interval", "Integer"]
                                      (intervalInteger (-10000) (-2000))
