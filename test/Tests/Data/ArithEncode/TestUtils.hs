@@ -179,15 +179,15 @@ testExclude tags iso vals nonvals excludes =
       testNameTags "not_inDomain" ("inDomain" : tags)
                    (testNotInDomain iso badvals) ]
 
-instance (Ord val, Hashable val) => Hashable (HashSet.HashSet val) where
-  hashWithSalt s set = s `hashWithSalt` sort (HashSet.toList set)
+-- instance (Ord val, Hashable val) => Hashable (HashSet.HashSet val) where
+--   hashWithSalt s set = s `hashWithSalt` sort (HashSet.toList set)
 
 instance (Ord val, Hashable val) => Ord (HashSet.HashSet val) where
   compare s1 s2 = compare (sort (HashSet.toList s1)) (sort (HashSet.toList s2))
 
-instance (Ord key, Hashable key, Ord val, Hashable val) =>
-         Hashable (HashMap.HashMap key val) where
-  hashWithSalt s map = s `hashWithSalt` sort (HashMap.toList map)
+-- instance (Ord key, Hashable key, Ord val, Hashable val) =>
+--         Hashable (HashMap.HashMap key val) where
+--   hashWithSalt s map = s `hashWithSalt` sort (HashMap.toList map)
 
 instance (Ord key, Hashable key, Ord val) =>
          Ord (HashMap.HashMap key val) where
