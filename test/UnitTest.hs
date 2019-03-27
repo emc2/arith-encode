@@ -28,6 +28,8 @@
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
 
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main(main) where
 
 import Test.HUnitPlus
