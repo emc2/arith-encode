@@ -28,6 +28,8 @@
 -- OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 -- SUCH DAMAGE.
 
+{-# LANGUAGE CPP #-}
+
 module Tests.Data.ArithEncode.TestUtils where
 
 import Control.Monad
@@ -179,19 +181,31 @@ testExclude tags iso vals nonvals excludes =
       testNameTags "not_inDomain" ("inDomain" : tags)
                    (testNotInDomain iso badvals) ]
 
+#if MIN_VERSION_unordered_containers(0,2,6)
+#else
 instance (Ord val, Hashable val) => Hashable (HashSet.HashSet val) where
   hashWithSalt s set = s `hashWithSalt` sort (HashSet.toList set)
+#endif
 
+#if MIN_VERSION_unordered_containers(0,2,9)
+#else
 instance (Ord val, Hashable val) => Ord (HashSet.HashSet val) where
   compare s1 s2 = compare (sort (HashSet.toList s1)) (sort (HashSet.toList s2))
+#endif
 
+#if MIN_VERSION_unordered_containers(0,2,6)
+#else
 instance (Ord key, Hashable key, Ord val, Hashable val) =>
          Hashable (HashMap.HashMap key val) where
   hashWithSalt s map = s `hashWithSalt` sort (HashMap.toList map)
+#endif
 
+#if MIN_VERSION_unordered_containers(0,2,9)
+#else
 instance (Ord key, Hashable key, Ord val) =>
          Ord (HashMap.HashMap key val) where
   compare m1 m2 = compare (sort (HashMap.toList m1)) (sort (HashMap.toList m2))
+#endif
 
 instance (Hashable key, Hashable val) => Hashable (Map.Map key val) where
   hashWithSalt s map = s `hashWithSalt` Map.assocs map
