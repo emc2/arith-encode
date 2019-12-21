@@ -1,3 +1,1 @@
-## Status
-
-[![Build Status](https://www.metricspace.net/jenkins/buildStatus/icon?job=arith-encode)]()
+# arith-encode [![Build Status](https://travis-ci.org/Bodigrim/arith-encode.svg)](https://travis-ci.org/Bodigrim/arith-encode) [![Hackage](http://img.shields.io/hackage/v/arith-encode.svg)](https://hackage.haskell.org/package/arith-encode) [![Hackage CI](https://matrix.hackage.haskell.org/api/v2/packages/arith-encode/badge)](https://matrix.hackage.haskell.org/package/arith-encode)
